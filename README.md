@@ -1,98 +1,116 @@
 <div align="center">    
  
-# Your Project Name     
+# ClinicalGait-CrossAttention_ASD_PyTorch
 
+<!--
 [![Paper](http://img.shields.io/badge/paper-arxiv.1001.2234-B31B1B.svg)](https://www.nature.com/articles/nature14539)
 [![Conference](http://img.shields.io/badge/NeurIPS-2019-4b44ce.svg)](https://papers.nips.cc/book/advances-in-neural-information-processing-systems-31-2018)
 [![Conference](http://img.shields.io/badge/ICLR-2019-4b44ce.svg)](https://papers.nips.cc/book/advances-in-neural-information-processing-systems-31-2018)
-[![Conference](http://img.shields.io/badge/AnyConference-year-4b44ce.svg)](https://papers.nips.cc/book/advances-in-neural-information-processing-systems-31-2018)  
+[![Conference](http://img.shields.io/badge/AnyConference-year-4b44ce.svg)](https://papers.nips.cc/book/advances-in-neural-information-processing-systems-31-2018)   -->
 <!--
-ARXIV   
+ARXIV
 [![Paper](http://img.shields.io/badge/arxiv-math.co:1480.1111-B31B1B.svg)](https://www.nature.com/articles/nature14539)
 -->
-![CI testing](https://github.com/PyTorchLightning/deep-learning-project-template/workflows/CI%20testing/badge.svg?branch=master&event=push)
-
 
 <!--  
 Conference   
--->   
+-->
 </div>
- 
-## Description   
-This github repository is a template for deep learning projects. It is based on PyTorch Lightning and contains the following features:
-- DataModule
-- Model
-- Trainer
-- Test helper
 
-## How to run   
-First, install dependencies   
+
+Official PyTorch implementation of our research:  
+**Cross-Attentive Temporal Fusion with Clinical Priors for Adult Spinal Deformity Classification**
+
+This work proposes a clinically informed attention framework that integrates orthopedic knowledge into video-based gait analysis, aiming to enhance the interpretability and accuracy of automated ASD diagnosis.
+
+## 🧠 Key Highlights
+
+- 🎯 **Clinical Knowledge Integration**: Region-of-interest (ROI) priors from orthopedic experts guide attention to pathological joints (lumbar, pelvis, head, shoulder).
+- 🔄 **Cross-Attentive Temporal Fusion**: Enhances the model’s ability to capture periodic gait dynamics and inter-joint correlations.
+- 📹 **Monocular Video Input**: Works on 2D pose sequences extracted from standard RGB video.
+- 🔍 **Explainability**: Generates interpretable attention maps aligned with clinical heuristics.
+
+
+## 🗂️ Project Structure
+
+```
+
+ClinicalGait-CrossAttention\_ASD\_PyTorch/
+├── configs/                # YAML configs for training/evaluation
+├── data/                   # Dataset loading and preprocessing
+├── models/                 # Backbone (CNN/ViT), Cross-Attention, Fusion
+├── trainer/                # Training & evaluation scripts
+├── visualization/          # Attention heatmap generation and demo tools
+├── scripts/                # Utility bash scripts
+├── docs/                   # Figures and documentation
+├── requirements.txt        # Python package requirements
+└── README.md
+
+```
+
+
+## 🚀 Quick Start
+
+### Installation
+
 ```bash
-# clone project   
-git clone [url]
-
-# install project   
-cd deep-learning-project-template 
-pip install -e .   
+git clone https://github.com/your_username/ClinicalGait-CrossAttention_ASD_PyTorch.git
+cd ClinicalGait-CrossAttention_ASD_PyTorch
 pip install -r requirements.txt
- ```   
- Next, navigate to any file and run it.   
- ```bash
-# module folder
-cd project
-
-# run module (example: mnist as your main contribution)   
-python lit_classifier_main.py    
 ```
 
-## Project Organization   
-```txt
-├── README.md          <- The top-level README for developers using this project.
-├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
-│
-├── docs               <- A default Sphinx project; see sphinx-doc.org for details
-│
-├── models             <- Trained and serialized models, model predictions, or model summaries
-│
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
-│
-├── project            <- Source code for use in this project.
-│   ├── __init__.py    <- Makes project a Python module
+### Training
+
+```bash
+python trainer/train.py --config configs/asd_crossattention.yaml
 ```
 
-## Imports
-This project is setup as a package which means you can now easily import any file into any other file like so:
-```python
-from project.datasets.mnist import mnist
-from project.lit_classifier_main import LitClassifier
-from pytorch_lightning import Trainer
+### Evaluation
 
-# model
-model = LitClassifier()
-
-# data
-train, val, test = mnist()
-
-# train
-trainer = Trainer()
-trainer.fit(model, train, val)
-
-# test using the best model!
-trainer.test(test_dataloaders=test)
+```bash
+python trainer/evaluate.py --config configs/asd_crossattention.yaml
 ```
 
-### Citation   
-```
-@article{YourName,
-  title={Your Title},
-  author={Your team},
-  journal={Location},
-  year={Year}
+---
+
+## 📊 Performance
+
+| Model                          | Accuracy  | F1-Score | AUC      |
+| ------------------------------ | --------- | -------- | -------- |
+| CNN Baseline                   | 78.5%     | 0.76     | 0.81     |
+| ViT + PhaseMix                 | 82.7%     | 0.80     | 0.85     |
+| **Ours (CK + CrossAttention)** | **86.1%** | **0.84** | **0.90** |
+
+---
+
+## 📁 Dataset
+
+Our dataset consists of video clips of individuals with or without Adult Spinal Deformity (ASD), recorded at 30 FPS in 1920x1080 resolution, from side-view walking trials.
+Each clip is annotated by spine surgeons based on clinical assessments.
+
+- ✅ 81 patients
+- 📹 1,957 gait video clips (2–10 seconds)
+- 🩻 Diagnosis from full-spine radiographs
+- ⚠️ _Due to ethical constraints, dataset is not publicly released. Contact for collaboration._
+
+---
+
+## 📄 Citation
+
+If you find this project helpful, please cite our work:
+
+```bibtex
+@article{chen2025crossattention,
+  title={Cross-Attentive Temporal Fusion with Clinical Priors for Adult Spinal Deformity Classification},
+  author={Chen, Kaixu and ...},
+  journal={TBA},
+  year={2025}
 }
-```   
+```
+
+
+## 🔗 Related Works
+
+- \[Chen et al., 2023] Two-stage gait classification with CNNs \~\cite{chen2023two}
+- \[Chen et al., 2024] PhaseMix for periodic motion fusion \~\cite{chen2024phasemix}
+
