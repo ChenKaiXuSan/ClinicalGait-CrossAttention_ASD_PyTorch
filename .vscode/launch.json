@@ -41,9 +41,9 @@
         "train.gpu=1",
         // "train.clip_duration=1",
         // "train.uniform_temporal_subsample_num=8",
-        // "data.num_workers=0",
+        "data.num_workers=0",
         "model.fuse_method=se_atn",
-        "model.fuse_layer_num=1",
+        "model.fusion_layers=5",
       ]
     }
   ]
