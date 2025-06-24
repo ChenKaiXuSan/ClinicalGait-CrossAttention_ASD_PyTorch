@@ -89,14 +89,14 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         auto_insert_metric_name=False,
         monitor="val/video_acc",
         mode="max",
-        save_last=False,
+        save_last=True,
         save_top_k=2,
     )
 
     # define the early stop.
     early_stopping = EarlyStopping(
         monitor="val/video_acc",
-        patience=5,
+        patience=2,
         mode="max",
     )
 
@@ -165,9 +165,9 @@ def init_params(config):
         logger.info(f"finish train fold: {fold}")
         logger.info("#" * 50)
 
-    logging.info("#" * 50)
-    logging.info("finish train all fold")
-    logging.info("#" * 50)
+    logger.info("#" * 50)
+    logger.info("finish train all fold")
+    logger.info("#" * 50)
 
 
 if __name__ == "__main__":
