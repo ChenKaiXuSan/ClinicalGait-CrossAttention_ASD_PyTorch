@@ -117,12 +117,12 @@ if __name__ == "__main__":
         {
             "model": {
                 "model_class_num": 3,
-                "fusion_layers": [0, 2, 4],  # 控制哪些层启用 cross attention
+                "fusion_layers": [0,1,2,3,4],  # 控制哪些层启用 cross attention
             }
         }
     )
     model = CrossAttentionRes3DCNN(hparams)
-    video = torch.randn(2, 3, 16, 112, 112)  # [B, C, T, H, W]
-    attn_map = torch.randn(2, 1, 16, 112, 112)  # [B, C, T, H, W]
+    video = torch.randn(2, 3, 8, 224, 224)  # [B, C, T, H, W]
+    attn_map = torch.randn(2, 1, 8, 224, 224)  # [B, C, T, H, W]
     output = model(video, attn_map)
     print(output.shape)  # 应该是 [B, C, T, H, W]，即 [2, 3, 16, 112, 112]
