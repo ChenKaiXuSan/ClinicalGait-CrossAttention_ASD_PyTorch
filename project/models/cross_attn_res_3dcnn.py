@@ -4,6 +4,10 @@ import torch.nn.functional as F
 import os
 import matplotlib.pyplot as plt
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class CrossAttentionFusion(nn.Module):
     def __init__(self, dim_q, dim_kv, dim_out, name=None):
@@ -36,6 +40,9 @@ class CrossAttentionRes3DCNN(nn.Module):
         super().__init__()
         self.model_class_num = hparams.model.model_class_num
         self.fusion_layers = hparams.model.fusion_layers  # e.g., [0, 2, 4]
+        logger.info(
+            f"Using CrossAttentionRes3DCNN with fusion layers: {self.fusion_layers}"
+        )
         self.model = self.init_resnet(self.model_class_num)
 
         self.attn_fusions = nn.ModuleList()
@@ -113,11 +120,12 @@ class CrossAttentionRes3DCNN(nn.Module):
 
 if __name__ == "__main__":
     from omegaconf import OmegaConf
+
     hparams = OmegaConf.create(
         {
             "model": {
                 "model_class_num": 3,
-                "fusion_layers": [0,1,2,3,4],  # 控制哪些层启用 cross attention
+                "fusion_layers": [0, 1, 2, 3, 4],  # 控制哪些层启用 cross attention
             }
         }
     )

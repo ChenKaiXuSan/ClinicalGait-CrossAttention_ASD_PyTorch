@@ -30,6 +30,15 @@ from project.models.se_attn_res_3dcnn import SEFusionRes3DCNN
 from project.models.res_3dcnn import Res3DCNN
 from project.models.res_3dcnn_atn import Res3DCNNATN
 
+fuse_layers_mapping = {
+    0: [],
+    1: [0],
+    2: [0, 1],
+    3: [0, 1, 2],
+    4: [0, 1, 2, 3],
+    5: [0, 1, 2, 3, 4],
+}
+
 
 def select_model(hparams) -> nn.Module:
     """
@@ -44,6 +53,15 @@ def select_model(hparams) -> nn.Module:
 
     model_backbone = hparams.model.backbone
     fuse_method = hparams.model.fuse_method
+
+    if fuse_method in ["cross_atn", "se_atn"]:
+        if "fusion_layers" in hparams.model:
+            fusion_layers = hparams.model.fusion_layers
+            if isinstance(fusion_layers, int):
+                fusion_layers = fuse_layers_mapping[fusion_layers]
+            hparams.model.fusion_layers = fusion_layers
+        else:
+            hparams.model.fusion_layers = []
 
     if model_backbone == "3dcnn":
         if fuse_method == "cross_atn":

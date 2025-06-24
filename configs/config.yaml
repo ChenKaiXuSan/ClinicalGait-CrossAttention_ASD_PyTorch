@@ -7,7 +7,8 @@ hydra:
     subdir: ${train.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweeper:
     params:
-      model.fuse_method: add, mul, concat, none, late, avg
+      model.fuse_method: cross_atn, se_atn,
+      model.fuse_layer_num: 0, 1, 2, 3, 4, 5
       model.backbone: 3dcnn
 
 optimizer:
@@ -36,6 +37,7 @@ model:
   model_depth: 50 # choices=[50, 101, 152], help='the depth of used model'
 
   fuse_method: add # add, mul, concat, none, late, avg, cross_atn, se_atn
+  fuse_layer_num: 5 # the fuse layer number of the model, used for cross attention, se attention, etc.
 
 train:
   # Training config
@@ -48,7 +50,7 @@ train:
   # experiment: two_stream, cnn_lstm, cnn, 3dcnn
   attn_map: True # if use the attention map
 
-  experiment: ${model.backbone}_attn_map_${train.attn_map}_${model.fuse_method} # the experiment name
+  experiment: ${model.backbone}_attn_map_${train.attn_map}_${model.fuse_method}_${model.fuse_layer_num} # the experiment name, used for log path
 
   gpu: 0 # choices=[0, 1], help='the gpu number whicht to train'
 
