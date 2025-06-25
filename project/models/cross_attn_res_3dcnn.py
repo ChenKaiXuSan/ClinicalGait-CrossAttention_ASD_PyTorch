@@ -8,6 +8,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+fuse_layers_mapping = {
+    0: [],
+    1: [0],
+    2: [0, 1],
+    3: [0, 1, 2],
+    4: [0, 1, 2, 3],
+    5: [0, 1, 2, 3, 4],
+}
+
 
 class CrossAttentionFusion(nn.Module):
     def __init__(self, dim_q, dim_kv, dim_out, name=None):
@@ -39,7 +48,13 @@ class CrossAttentionRes3DCNN(nn.Module):
     def __init__(self, hparams) -> None:
         super().__init__()
         self.model_class_num = hparams.model.model_class_num
-        self.fusion_layers = hparams.model.fusion_layers  # e.g., [0, 2, 4]
+
+        fusion_layers = hparams.model.fusion_layers
+        if isinstance(fusion_layers, int):
+            fusion_layers = fuse_layers_mapping[fusion_layers]
+            
+        self.fusion_layers = fusion_layers
+
         logger.info(
             f"Using CrossAttentionRes3DCNN with fusion layers: {self.fusion_layers}"
         )
