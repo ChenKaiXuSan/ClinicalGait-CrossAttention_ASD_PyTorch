@@ -9,6 +9,10 @@
 # === 切换到作业提交目录 ===
 cd /home/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
 
+
+# mkdir -p logs/pegasus
+mkdir -p logs/pegasus/
+
 # === 加载 Python + 激活 Conda 环境 ===
 module load intelpython/2022.3.1
 source ${CONDA_PREFIX}/etc/profile.d/conda.sh
@@ -17,6 +21,11 @@ source /home/SKIING/chenkaixu/code/med_atn/bin/activate
 
 # === 可选：打印 GPU 状态 ===
 nvidia-smi
+
+# 输出当前环境信息
+echo "Current Python version: $(python --version)"
+echo "Current Conda environment: $(conda info --envs | grep '*' | awk '{print $1}')"
+echo "Current working directory: $(pwd)"
 
 # params 
 root_path = /work/SKIING/chenkaixu/data/asd_dataset/pose_attn_map_dataset
