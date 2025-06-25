@@ -21,3 +21,4 @@ captum
 tensorboard
 
 rich
+seaborn
