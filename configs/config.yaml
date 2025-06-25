@@ -1,10 +1,10 @@
 # hydra config
 hydra:
   run:
-    dir: /workspace/code/logs/${train.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ${train.log_path} # the log path, used for log and checkpoint
   sweep:
-    dir: /workspace/code/logs/
-    subdir: ${train.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ${train.log_path} # the sweep path, used for log and checkpoint
+    # subdir: ${train.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweeper:
     params:
       model.fuse_method: cross_atn, se_atn
