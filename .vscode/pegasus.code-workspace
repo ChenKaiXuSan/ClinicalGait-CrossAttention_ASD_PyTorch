@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "code",
+			"path": "/home/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch"
+		},
+		{
+			"name": "data",
+			"path": "/work/SKIING/chenkaixu/data/asd_dataset"
+		},
+	]
+}
