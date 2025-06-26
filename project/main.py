@@ -26,7 +26,7 @@ import hydra
 from omegaconf import DictConfig
 
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from pytorch_lightning.callbacks import (
     TQDMProgressBar,
     RichModelSummary,
@@ -80,8 +80,13 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         name=str(fold),  # here should be str type.
     )
 
+    cvs_logger = CSVLogger(
+        save_dir=os.path.join(hparams.train.log_path, "csv_logs"),
+        name=str(fold) + "_csv",  # here should be str type.
+    )
+
     # some callbacks
-    progress_bar = TQDMProgressBar(refresh_rate=100)
+    progress_bar = TQDMProgressBar(refresh_rate=10)
     rich_model_summary = RichModelSummary(max_depth=2)
 
     # define the checkpoint becavier.
@@ -109,10 +114,10 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         ],
         accelerator="gpu",
         max_epochs=hparams.train.max_epochs,
-        logger=tb_logger,  # wandb_logger,
+        logger=[cvs_logger, tb_logger],
         check_val_every_n_epoch=1,
         callbacks=[
-            progress_bar,
+            # progress_bar,
             rich_model_summary,
             model_check_point,
             early_stopping,
