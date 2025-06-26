@@ -19,7 +19,13 @@ from project.models.cross_attn_res_3dcnn import CrossAttentionRes3DCNN
 def test_cross_attention_layers(fusion_layers):
     # 构建超参数配置
     hparams = OmegaConf.create(
-        {"model": {"model_class_num": 3, "fusion_layers": fusion_layers}}
+        {
+            "model": {
+                "model_class_num": 3,
+                "fusion_layers": fusion_layers,
+                "ckpt_path": "checkpoints/SLOW_8x8_R50",
+            }
+        }
     )
 
     # 构建模型

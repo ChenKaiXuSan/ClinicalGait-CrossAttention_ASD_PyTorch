@@ -32,7 +32,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import OmegaConf
-from torchvision.models.video import r3d_18
 from project.models.base_model import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -110,12 +109,12 @@ class PoseFusionRes3DCNN(BaseModel):
         # Expose backbone stages as a list for easy indexing
         self.blocks = nn.ModuleList(
             [
-                self.model.block[0],  # stem
-                self.model.block[1],  # res2
-                self.model.block[2],  # res3
-                self.model.block[3],  # res4
-                self.model.block[4],  # res5
-                self.model.block[5],  # global pool + flatten + classifier
+                self.model.blocks[0],  # stem
+                self.model.blocks[1],  # res2
+                self.model.blocks[2],  # res3
+                self.model.blocks[3],  # res4
+                self.model.blocks[4],  # res5
+                self.model.blocks[5],  # global pool + flatten + classifier
             ]
         )
 
