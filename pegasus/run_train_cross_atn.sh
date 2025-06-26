@@ -27,7 +27,7 @@ echo "Current Conda environment: $(conda info --envs | grep '*' | awk '{print $1
 echo "Current working directory: $(pwd)"
 
 # params 
-root_path = /work/SKIING/chenkaixu/data/asd_dataset/pose_attn_map_dataset
+root_path=/work/SKIING/chenkaixu/data/asd_dataset/pose_attn_map_dataset
 
 # === 运行你的训练脚本（Hydra 参数可以加在后面）===
 python -m project.main data.root_path=${root_path} model.fuse_method=cross_atn train.fold=10 
