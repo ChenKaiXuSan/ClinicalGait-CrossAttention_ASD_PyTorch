@@ -59,6 +59,8 @@ class DefineCrossValidation(object):
         self.class_num: int = config.model.model_class_num
         self.clip_duration: int = config.train.clip_duration
 
+        self.raw_video_path = config.data.video_path
+
     @staticmethod
     def random_sampler(X: list, y: list, train_idx: list, val_idx: list, sampler):
         # train
@@ -152,7 +154,7 @@ class DefineCrossValidation(object):
                 file_info_dict = json.load(f)
 
             video_name = file_info_dict["video_name"]
-            video_path = file_info_dict["video_path"]
+            # video_path = file_info_dict["video_path"]
             video_disease = file_info_dict["disease"]
 
             if video_disease not in _disease_to_num.keys():
@@ -160,6 +162,13 @@ class DefineCrossValidation(object):
 
             if not (temp_path / video_disease).exists():
                 (temp_path / video_disease).mkdir(parents=True, exist_ok=False)
+
+            # copy the raw video file to map file
+            video_path = Path(self.raw_video_path).rglob("*.mp4")
+            for i in video_path:
+                if video_name in i.name:
+                    video_path = i
+                    break
 
             shutil.copy(video_path, temp_path / video_disease / (video_name + ".mp4"))
 
