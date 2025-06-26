@@ -32,6 +32,7 @@ echo "Current Model load path: $(ls checkpoints/SLOW_8x8_R50.pyth)"
 
 # params 
 root_path=/work/SKIING/chenkaixu/data/asd_dataset/pose_attn_map_dataset
+video_path=/work/SKIING/chenkaixu/data/asd_dataset/segmentation_dataset_512/fold0
 
 # === 运行你的训练脚本（Hydra 参数可以加在后面）===
-python -m project.main data.root_path=${root_path} model.fuse_method=se_atn train.fold=10 
+python -m project.main data.root_path=${root_path} model.fuse_method=se_atn train.fold=10 data.video_path=${video_path} 
