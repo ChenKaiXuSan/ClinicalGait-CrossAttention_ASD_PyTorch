@@ -51,18 +51,18 @@ def has_internet(host="github.com", timeout=3) -> bool:
 
 
 def download_file(url: str, save_path: Path):
-    """Stream‐download a file only if it doesn’t exist."""
-
+    """Download file from URL and save directly to `save_path`."""
+    save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
+
     with requests.get(url, stream=True, timeout=10) as r:
         r.raise_for_status()
-        # 先写入临时文件，避免半途失败导致损坏
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            shutil.copyfileobj(r.raw, tmp)
-            tmp.flush()
-            Path(tmp.name).replace(save_path)
-    print(f"[INFO] Weights downloaded to {save_path.absolute()}")
+        with open(save_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                if chunk:  # 避免 keep-alive 空包
+                    f.write(chunk)
 
+    print(f"[INFO] Weights downloaded to {save_path.resolve()}")
 
 class BaseModel(nn.Module):
     """
@@ -70,6 +70,7 @@ class BaseModel(nn.Module):
     """
 
     def __init__(self, hparams):
+        super().__init__()
         self.hparams = hparams
         self.model = None
 
@@ -109,13 +110,15 @@ class BaseModel(nn.Module):
             if weight_path.exists():
                 print(f"[INFO] Loading local weights: {weight_path}")
                 state = torch.load(weight_path, map_location="cpu")
-                model.load_state_dict(state)
+                model_state = state["model_state"]
+                model.load_state_dict(model_state)
             elif has_internet():
                 print("[INFO] No local weights, downloading …")
                 url = checkpoint_paths["slow_r50"]
                 download_file(url, weight_path)
                 state = torch.load(weight_path, map_location="cpu")
-                model.load_state_dict(state)
+                model_state = state["model_state"]
+                model.load_state_dict(model_state)
             else:
                 print("[WARN] No internet and no local weights — model will be random.")
         else:
