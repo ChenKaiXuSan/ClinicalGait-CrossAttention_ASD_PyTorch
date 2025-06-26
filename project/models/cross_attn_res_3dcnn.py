@@ -5,6 +5,7 @@ import os
 import matplotlib.pyplot as plt
 
 import logging
+from project.models.base_model import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -44,21 +45,22 @@ class CrossAttentionFusion(nn.Module):
         return out + x
 
 
-class CrossAttentionRes3DCNN(nn.Module):
+class CrossAttentionRes3DCNN(BaseModel):
     def __init__(self, hparams) -> None:
-        super().__init__()
-        self.model_class_num = hparams.model.model_class_num
+        super().__init__(hparams)
 
         fusion_layers = hparams.model.fusion_layers
         if isinstance(fusion_layers, int):
             fusion_layers = fuse_layers_mapping[fusion_layers]
-            
-        self.fusion_layers = fusion_layers
 
+        self.fusion_layers = fusion_layers
         logger.info(
             f"Using CrossAttentionRes3DCNN with fusion layers: {self.fusion_layers}"
         )
-        self.model = self.init_resnet(self.model_class_num)
+
+        self.ckpt = hparams.model.ckpt_path
+        self.model_class_num = hparams.model.model_class_num
+        self.model = self.init_resnet(self.model_class_num, self.ckpt)
 
         self.attn_fusions = nn.ModuleList()
         dim_list = [64, 256, 512, 1024, 2048]
@@ -69,22 +71,6 @@ class CrossAttentionRes3DCNN(nn.Module):
                 self.attn_fusions.append(fusion)
             else:
                 self.attn_fusions.append(nn.Identity())
-
-    @staticmethod
-    def init_resnet(class_num: int = 3) -> nn.Module:
-        slow = torch.hub.load(
-            "facebookresearch/pytorchvideo", "slow_r50", pretrained=True
-        )
-        slow.blocks[0].conv = nn.Conv3d(
-            3,
-            64,
-            kernel_size=(1, 7, 7),
-            stride=(1, 2, 2),
-            padding=(0, 3, 3),
-            bias=False,
-        )
-        slow.blocks[-1].proj = nn.Linear(2048, class_num)
-        return slow
 
     def forward(self, video: torch.Tensor, attn_map: torch.Tensor) -> torch.Tensor:
         x = self.model.blocks[0](video)
