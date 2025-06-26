@@ -9,8 +9,11 @@
 # === 切换到作业提交目录 ===
 cd /home/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
 
-# mkdir -p logs/pegasus
 mkdir -p logs/pegasus/
+mkdir -p checkpoints/
+
+# === 下载预训练模型（如果需要） ===
+wget -O /home/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch/checkpoints/SLOW_8x8_R50.pyth https://dl.fbaipublicfiles.com/pytorchvideo/model_zoo/kinetics/SLOW_8x8_R50.pyth
 
 # === 加载 Python + 激活 Conda 环境 ===
 module load intelpython/2022.3.1
@@ -25,6 +28,7 @@ nvidia-smi
 echo "Current Python version: $(python --version)"
 echo "Current Conda environment: $(conda info --envs | grep '*' | awk '{print $1}')"
 echo "Current working directory: $(pwd)"
+echo "Current Model load path: $(ls checkpoints/SLOW_8x8_R50.pyth)"
 
 # params 
 root_path=/work/SKIING/chenkaixu/data/asd_dataset/pose_attn_map_dataset

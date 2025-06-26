@@ -28,6 +28,7 @@ nvidia-smi
 echo "Current Python version: $(python --version)"
 echo "Current Conda environment: $(conda info --envs | grep '*' | awk '{print $1}')"
 echo "Current working directory: $(pwd)"
+echo "Current Model load path: $(ls checkpoints/SLOW_8x8_R50.pyth)"
 
 # params 
 root_path=/work/SKIING/chenkaixu/data/asd_dataset/pose_attn_map_dataset

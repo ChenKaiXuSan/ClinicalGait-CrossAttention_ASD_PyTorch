@@ -93,8 +93,7 @@ class BaseModel(nn.Module):
 
     @staticmethod
     def init_resnet(
-        class_num: int = 3, weight_path: str | Path | None = None
-    ) -> nn.Module:
+        class_num: int = 3, weight_path: str = "") -> nn.Module:
         """
         Args:
             class_num: 输出类别数

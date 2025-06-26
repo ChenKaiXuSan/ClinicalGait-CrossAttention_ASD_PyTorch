@@ -62,15 +62,17 @@ class SEFusion(nn.Module):
 
 class SEFusionRes3DCNN(BaseModel):
     def __init__(self, hparams) -> None:
-        super().__init__()
-        self.model_class_num = hparams.model.model_class_num
-        self.ckpt = hparams.model.ckpt
+        super().__init__(hparams)
+        
         fusion_layers = hparams.model.fusion_layers
         if isinstance(fusion_layers, int):
             fusion_layers = fuse_layers_mapping[fusion_layers]
 
         self.fusion_layers = fusion_layers
         logger.info(f"Using SEFusionRes3DCNN with fusion layers: {self.fusion_layers}")
+
+        self.ckpt = hparams.model.ckpt_path
+        self.model_class_num = hparams.model.model_class_num
         self.model = self.init_resnet(self.model_class_num, self.ckpt)
 
         self.attn_fusions = nn.ModuleList()
