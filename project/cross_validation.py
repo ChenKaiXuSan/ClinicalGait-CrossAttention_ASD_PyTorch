@@ -155,7 +155,11 @@ class DefineCrossValidation(object):
 
             video_name = file_info_dict["video_name"]
             # * change the video path to fit the different server.
-            file_info_dict["video_path"] = self.raw_video_path + '/'.join(file_info_dict["video_path"].split("/")[5:])
+            file_info_dict["video_path"] = (
+                self.raw_video_path
+                + "/"
+                + "/".join(file_info_dict["video_path"].split("/")[5:])
+            )
             video_path = file_info_dict["video_path"]
             video_disease = file_info_dict["disease"]
 

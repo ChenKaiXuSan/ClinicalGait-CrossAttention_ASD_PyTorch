@@ -18,21 +18,22 @@ mkdir -p checkpoints/
 # === 加载 Python + 激活 Conda 环境 ===
 module load intelpython/2022.3.1
 source ${CONDA_PREFIX}/etc/profile.d/conda.sh
-# conda activate base               # ✅ 替换为你的环境名
+conda deactivate # 确保先退出任何现有的 Conda 环境
 source /home/SKIING/chenkaixu/code/med_atn/bin/activate
 
 # === 可选：打印 GPU 状态 ===
 nvidia-smi
 
+NUM_WORKERS=$(nproc)
 # 输出当前环境信息
-echo "Current Python version: $(python --version)"
-echo "Current Conda environment: $(conda info --envs | grep '*' | awk '{print $1}')"
 echo "Current working directory: $(pwd)"
+echo "Total CPU cores: $NUM_WORKERS"
+echo "Current Python version: $(python --version)"
+echo "Current virtual environment: $(which python)"
 echo "Current Model load path: $(ls checkpoints/SLOW_8x8_R50.pyth)"
 
 # params 
-root_path=/work/SKIING/chenkaixu/data/asd_dataset/pose_attn_map_dataset
-video_path=/work/SKIING/chenkaixu/data/asd_dataset/segmentation_dataset_512/fold0
+root_path=/work/SKIING/chenkaixu/data/asd_dataset/
 
 # === 运行你的训练脚本（Hydra 参数可以加在后面）===
-python -m project.main data.root_path=${root_path} model.fuse_method=se_atn train.fold=10 data.video_path=${video_path} 
+python -m project.main data.root_path=${root_path} model.fuse_method=se_atn train.fold=10 data.num_workers=${NUM_WORKERS}
