@@ -30,88 +30,62 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-
 # class UniformTemporalSubsample:
-#     """Uniformly subsample ``num_samples`` indices from the temporal dimension of the video.
-
-#     Videos are expected to be of shape ``[..., T, C, H, W]`` where ``T`` denotes the temporal dimension.
-
-#     When ``num_samples`` is larger than the size of temporal dimension of the video, it
-#     will sample frames based on nearest neighbor interpolation.
-
-#     Args:
-#         num_samples (int): The number of equispaced samples to be selected
-#     """
-
-#     _transformed_types = (torch.Tensor,)
 
 #     def __init__(self, num_samples: int):
-#         super().__init__()
 #         self.num_samples = num_samples
 
+#     def __call__(self, video: torch.Tensor) -> torch.Tensor:
+#         """
+#         video: Tensor of shape (T, C, H, W)
+#         returns: Subsampled video of shape (num_samples, C, H, W)
+#         """
+#         # Reference: https://github.com/facebookresearch/pytorchvideo/blob/a0a131e/pytorchvideo/transforms/functional.py#L19
+#         t_max = video.shape[-4] - 1
+#         indices = torch.linspace(0, t_max, self.num_samples, device=video.device).long()
+#         return torch.index_select(video, -4, indices)
 
-#     def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
-#         inpt = inpt.permute(1, 0, 2, 3)  # [C, T, H, W] -> [T, C, H, W]
-#         return F.uniform_temporal_subsample, inpt, self.num_samples
 
 class UniformTemporalSubsample:
+    """
+    等同于 torchvision.transforms.v2.UniformTemporalSubsample，
+    但在帧数不足时会 *均匀复制* 最近邻帧进行补齐。
+    支持输入形状 (T, C, H, W)   或 (B, T, C, H, W)。
+    """
 
     def __init__(self, num_samples: int):
+        if num_samples <= 0:
+            raise ValueError("num_samples must be > 0")
         self.num_samples = num_samples
 
-    def __call__(self, video: torch.Tensor) -> torch.Tensor:
+    def _compute_indices(self, t: int, device) -> Tensor:
+        """得到 size=[num_samples] 的 long 索引张量。"""
+        # 产生 float 索引，范围 [0, t-1]，共 num_samples 个点
+        idx_float = torch.linspace(
+            0, max(t - 1, 0), self.num_samples, dtype=torch.float32, device=device
+        )
+        # 四舍五入到最近帧，再转 long
+        return torch.round(idx_float).long()
+
+    def __call__(self, video: Tensor) -> Tensor:
         """
-        video: Tensor of shape (T, C, H, W)
-        returns: Subsampled video of shape (num_samples, C, H, W)
+        Args:
+            video: (T, C, H, W) **或** (B, T, C, H, W)
+
+        Returns:
+            Tensor: 与输入批量/通道一致，但时间维被采样/补齐为 `num_samples`
         """
-        # Reference: https://github.com/facebookresearch/pytorchvideo/blob/a0a131e/pytorchvideo/transforms/functional.py#L19
-        t_max = video.shape[-4] - 1
-        indices = torch.linspace(0, t_max, self.num_samples, device=video.device).long()
-        return torch.index_select(video, -4, indices)
+        is_batched = video.ndim == 5
+        if not is_batched and video.ndim != 4:
+            raise ValueError("Input must be (T, C, H, W) or (B, T, C, H, W)")
 
-# class UniformTemporalSubsample:
-#     """
-#     使用线性插值将输入视频在时间维（T）上统一为固定帧数。
-#     支持输入形状为 (T, C, H, W) 或 (B, T, C, H, W)。
-#     """
+        # 取出时间维长度
+        t = video.shape[-4]
+        idx = self._compute_indices(t, video.device)
 
-#     def __init__(self, num_samples: int, mode: str = "linear", align_corners: bool = False):
-#         self.num_samples = num_samples
-#         self.mode = mode
-#         self.align_corners = align_corners
+        # 在时间维(-4)上索引
+        return torch.index_select(video, -4, idx)
 
-#     def __call__(self, video: Tensor) -> Tensor:
-#         """
-#         Args:
-#             video: (T, C, H, W) or (B, T, C, H, W)
-
-#         Returns:
-#             video_interp: (num_samples, C, H, W) or (B, num_samples, C, H, W)
-#         """
-#         if video.ndim == 4:
-#             video = video.unsqueeze(0)  # [1, T, C, H, W]
-#             squeeze_back = True
-#         elif video.ndim == 5:
-#             squeeze_back = False
-#         else:
-#             raise ValueError("Expected 4D or 5D input tensor")
-
-#         # 输入为 [B, T, C, H, W] → 转为 [B, C, T, H, W] 以便 interpolate
-#         video = video.permute(0, 2, 1, 3, 4)
-#         # 在 temporal 维（即 dim=2）上做插值
-#         video_interp = F.interpolate(
-#             video,
-#             size=self.num_samples,
-#             mode=self.mode,
-#             align_corners=self.align_corners if self.mode in ["linear", "bilinear", "trilinear"] else None,
-#         )
-#         # 转回原始形状 [B, T, C, H, W]
-#         video_interp = video_interp.permute(0, 2, 1, 3, 4)
-
-#         if squeeze_back:
-#             return video_interp.squeeze(0)  # [num_samples, C, H, W]
-#         else:
-#             return video_interp  # [B, num_samples, C, H, W]
 
 class ApplyTransformToKey:
     """
