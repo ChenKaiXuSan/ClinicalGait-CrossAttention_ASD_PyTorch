@@ -33,6 +33,7 @@ from pytorch_lightning.callbacks import (
     ModelCheckpoint,
     EarlyStopping,
     LearningRateMonitor,
+    DeviceStatsMonitor,
 )
 
 from project.dataloader.data_loader import WalkDataModule
@@ -116,6 +117,7 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
             model_check_point,
             early_stopping,
             lr_monitor,
+            DeviceStatsMonitor(),  # monitor the device stats.
         ],
         # fast_dev_run=hparams.train.fast_dev_run,  # if use fast dev run for debug.
         # limit_train_batches=2,
