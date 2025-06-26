@@ -33,7 +33,7 @@ echo "Current virtual environment: $(which python)"
 echo "Current Model load path: $(ls checkpoints/SLOW_8x8_R50.pyth)"
 
 # params 
-root_path=/work/SKIING/chenkaixu/data/asd_dataset/
+root_path=/work/SKIING/chenkaixu/data/asd_dataset
 
 # === 运行你的训练脚本（Hydra 参数可以加在后面）===
 python -m project.main data.root_path=${root_path} model.fuse_method=se_atn train.fold=10 data.num_workers=${NUM_WORKERS}
