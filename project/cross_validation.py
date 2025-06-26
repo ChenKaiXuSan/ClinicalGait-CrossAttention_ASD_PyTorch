@@ -154,7 +154,9 @@ class DefineCrossValidation(object):
                 file_info_dict = json.load(f)
 
             video_name = file_info_dict["video_name"]
-            # video_path = file_info_dict["video_path"]
+            # * change the video path to fit the different server.
+            file_info_dict["video_path"] = self.raw_video_path + '/'.join(file_info_dict["video_path"].split("/")[5:])
+            video_path = file_info_dict["video_path"]
             video_disease = file_info_dict["disease"]
 
             if video_disease not in _disease_to_num.keys():
@@ -163,14 +165,11 @@ class DefineCrossValidation(object):
             if not (temp_path / video_disease).exists():
                 (temp_path / video_disease).mkdir(parents=True, exist_ok=False)
 
-            # copy the raw video file to map file
-            video_path = Path(self.raw_video_path).rglob("*.mp4")
-            for i in video_path:
-                if video_name in i.name:
-                    video_path = i
-                    break
-
             shutil.copy(video_path, temp_path / video_disease / (video_name + ".mp4"))
+
+            # update the json file with the video path
+            with open(path, "w") as f:
+                json.dump(file_info_dict, f, indent=4)
 
         return temp_path
 
