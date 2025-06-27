@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -A SKIING                        # ✅ 项目名（必须修改）
 #PBS -q gen_S                        # ✅ 队列名（gpu / debug / gen_S）
-#PBS -l elapstim_req=24:00:00         # ⏱ 运行时间限制（最多 24 小时）
+#PBS -l elapstim_req=17:00:00         # ⏱ 运行时间限制（最多 24 小时）
 #PBS -N pose_atn_train                     # 🏷 作业名称
 #PBS -t 0-5                     # 🗂 作业数组（可选，0-4 表示 5 个任务）
 #PBS -o logs/pegasus/train_pose_atn_out_fusion_${PBS_SUBREQNO}.log            # 📤 标准输出日志
