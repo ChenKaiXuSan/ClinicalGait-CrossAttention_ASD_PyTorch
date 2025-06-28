@@ -7,7 +7,7 @@ hydra:
     # subdir: ${train.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweeper:
     params:
-      model.fuse_method: cross_atn, se_atn
+      model.fuse_method: se_atn, pose_atn
       model.fusion_layers: 0, 1, 2, 3, 4, 5
       model.backbone: 3dcnn
 

@@ -114,7 +114,7 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         ],
         accelerator="gpu",
         max_epochs=hparams.train.max_epochs,
-        logger=[cvs_logger, tb_logger],
+        logger=[tb_logger],
         check_val_every_n_epoch=1,
         callbacks=[
             # progress_bar,
