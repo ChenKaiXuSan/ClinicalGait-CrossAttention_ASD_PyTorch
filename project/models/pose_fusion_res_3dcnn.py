@@ -21,13 +21,11 @@ Output
 ------
 Logits: **(N, num_classes)**
 """
-from __future__ import annotations
-
 import logging
 import os
 from typing import List, Sequence, Union
 
-import matplotlib.pyplot as plt  # type: ignore
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -36,17 +34,11 @@ from project.models.base_model import BaseModel
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-#  Pose-Gate Fusion block (channel-wise gating -> cheap & stable)
-# ---------------------------------------------------------------------------
 
-
+# -------------------------- Pose-Gate Fusion Block ---------------------------
 class PoseGateFusion(nn.Module):
-    """Fuse RGB features with a 1-channel pose/attention map via gating."""
-
     def __init__(self, in_channels: int, context_channels: int = 1):
         super().__init__()
-        # Bring both inputs to the same #channels ➜ concatenate ➜ predict gate
         self.rgb_conv = nn.Conv3d(in_channels, in_channels, kernel_size=3, padding=1)
         self.attn_conv = nn.Conv3d(context_channels, in_channels, kernel_size=1)
 
@@ -57,107 +49,73 @@ class PoseGateFusion(nn.Module):
             nn.Sigmoid(),
         )
 
-        self.last_scale: torch.Tensor | None = None  # saved for visualisation
+        self.last_scale: torch.Tensor | None = None
 
-    def forward(
-        self, x: torch.Tensor, attn: torch.Tensor
-    ) -> torch.Tensor:  # noqa: D401, N802
+    def forward(self, x: torch.Tensor, attn: torch.Tensor) -> torch.Tensor:
         rgb_feat = self.rgb_conv(x)
         attn_feat = self.attn_conv(attn)
 
         gate_input = torch.cat([rgb_feat, attn_feat], dim=1)
-        gate_weight = self.gate(gate_input)  # (N, C, T, H, W) in [0,1]
+        gate_weight = self.gate(gate_input)
         self.last_scale = gate_weight.detach()
 
         return rgb_feat * gate_weight + attn_feat * (1.0 - gate_weight)
 
 
-# Handy aliases when users give an *int* instead of a list
-fuse_layers_mapping = {
-    0: [],
-    1: [0],
-    2: [0, 1],
-    3: [0, 1, 2],
-    4: [0, 1, 2, 3],
-    5: [0, 1, 2, 3, 4],
+# -------------------------- Fusion Config Mapping ----------------------------
+FUSE_LAYERS_MAPPING = {
+    "single": {i: [i] for i in range(5)},
+    "multi": {
+        0: [],
+        1: [0],
+        2: [0, 1],
+        3: [0, 1, 2],
+        4: [0, 1, 2, 3],
+        5: [0, 1, 2, 3, 4],
+    },
 }
 
 
-# ---------------------------------------------------------------------------
-#  Main network
-# ---------------------------------------------------------------------------
-
-
+# ---------------------------- Main Model Class -------------------------------
 class PoseFusionRes3DCNN(BaseModel):
-    """RGB ✕ Pose attention fusion on top of a 3-D ResNet backbone."""
-
-    def __init__(self, hparams: OmegaConf) -> None:  # noqa: D401
+    def __init__(self, hparams: OmegaConf) -> None:
         super().__init__(hparams)
 
-        # -------------------------------------------------- hyper-params ----
-        fusion_layers: Union[int, Sequence[int]] = hparams.model.fusion_layers
+        ablation = hparams.model.get("ablation_study", "multi")
+        fusion_layers = hparams.model.fusion_layers
         if isinstance(fusion_layers, int):
-            fusion_layers = fuse_layers_mapping[fusion_layers]
-
+            fusion_layers = FUSE_LAYERS_MAPPING[ablation].get(fusion_layers, [])
         self.fusion_layers: List[int] = fusion_layers
-        logger.info("PoseFusionRes3DCNN | fusion at blocks: %s", self.fusion_layers)
+        logger.info(f"Fusion at blocks: {self.fusion_layers}")
 
         self.ckpt = hparams.model.ckpt_path
         self.model_class_num = hparams.model.model_class_num
         self.model = self.init_resnet(self.model_class_num, self.ckpt)
 
-        # Expose backbone stages as a list for easy indexing
-        self.blocks = nn.ModuleList(
-            [
-                self.model.blocks[0],  # stem
-                self.model.blocks[1],  # res2
-                self.model.blocks[2],  # res3
-                self.model.blocks[3],  # res4
-                self.model.blocks[4],  # res5
-                self.model.blocks[5],  # global pool + flatten + classifier
-            ]
-        )
+        self.blocks = nn.ModuleList([self.model.blocks[i] for i in range(6)])
 
-        self.attn_fusions = nn.ModuleList()
         dim_list = [64, 256, 512, 1024, 2048]
-        for i, dim in enumerate(dim_list):
-            if i in self.fusion_layers:
-                fusion = PoseGateFusion(dim, context_channels=1)
-                fusion.save_attn = True
-                self.attn_fusions.append(fusion)
-            else:
-                self.attn_fusions.append(nn.Identity())
+        self.attn_fusions = nn.ModuleList([
+            PoseGateFusion(dim) if i in self.fusion_layers else nn.Identity()
+            for i, dim in enumerate(dim_list)
+        ])
 
-    # ---------------------------------------------------------------- forward
-    def forward(
-        self, video: torch.Tensor, attn_map: torch.Tensor
-    ) -> torch.Tensor:  # noqa: D401, N802
-        """Forward pass.
-
-        Parameters
-        ----------
-        video : (N, 3, T, H, W)
-        attn_map : (N, 1, T, H, W)
-        """
+    def forward(self, video: torch.Tensor, attn_map: torch.Tensor) -> torch.Tensor:
         x = video
-        for idx in range(5):  # stem + 4 res stages
+        for idx in range(5):
             x = self.blocks[idx](x)
             if not isinstance(self.attn_fusions[idx], nn.Identity):
                 attn_resized = F.interpolate(
                     attn_map, size=x.shape[-3:], mode="trilinear", align_corners=False
                 )
                 x = self.attn_fusions[idx](x, attn_resized)
-
-        # global pool ➜ flatten ➜ classifier
         x = self.blocks[5](x)
         return x
 
-    # --------------------------------------------------------- visualisation
-    def save_attention_maps(self, save_dir: str = "fusion_vis") -> None:  # noqa: D401
+    def save_attention_maps(self, save_dir: str = "fusion_vis") -> None:
         os.makedirs(save_dir, exist_ok=True)
         for idx, fusion in enumerate(self.attn_fusions):
             if isinstance(fusion, PoseGateFusion) and fusion.last_scale is not None:
-                # average over batch & time/spatial dims ➜ channel-wise weight
                 scale = fusion.last_scale.mean(dim=(0, 2, 3, 4)).cpu().numpy()
                 plt.figure(figsize=(12, 3))
                 plt.bar(range(len(scale)), scale)
@@ -169,25 +127,20 @@ class PoseFusionRes3DCNN(BaseModel):
                 plt.close()
 
 
-# ---------------------------------------------------------------------------
-#  Quick smoke-test
-# ---------------------------------------------------------------------------
-
-
+# ---------------------------- Quick Test Entry -------------------------------
 if __name__ == "__main__":
-
     cfg = OmegaConf.create(
         {
             "model": {
                 "model_class_num": 3,
-                "fusion_layers": [0, 2, 4],  # fuse at stem, layer2, layer4
-                "ckpt_path": "",  # optional path to pretrained r3d_18 weights
+                "fusion_layers": 3,
+                "ckpt_path": "",
+                "ablation_study": "multi",  # "single" or "multi"
             }
         }
     )
-
-    net = PoseFusionRes3DCNN(cfg)
-    rgb = torch.randn(2, 3, 8, 112, 112)  # small input for CI sanity-checks
+    model = PoseFusionRes3DCNN(cfg)
+    rgb = torch.randn(2, 3, 8, 112, 112)
     pose = torch.randn(2, 1, 8, 112, 112)
-    logits = net(rgb, pose)
-    print("Output shape:", logits.shape)  # should be (2, 3) for 3 classes
+    output = model(rgb, pose)
+    print("Output shape:", output.shape)

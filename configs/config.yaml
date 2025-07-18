@@ -18,7 +18,7 @@ optimizer:
 
 data:
   root_path: /workspace/data
-  
+
   info_path: ${data.root_path}/pose_attn_map_dataset # this is the root path of dataset.
   video_path: ${data.root_path}/segmentation_dataset_512
 
@@ -34,12 +34,13 @@ data:
   batch_size: 1 # this used for default method, without gait cycle defined method.
 
 model:
-  backbone: 3dcnn # choices=[3dcnn, 2dcnn, cnn_lstm, two_stream, 3dcnn_atn], help='the backbone of the model'
+  backbone: 3dcnn # choices=[3dcnn, 2dcnn, cnn_lstm, two_stream], help='the backbone of the model'
   model_class_num: 3 # the class num of model. 2 > [ASD, non_ASD]. 3 > [ASD, DHS, LCS_HipOA]. 4 > [ASD, DHS, LCS_HipOA, normal]
   model_depth: 50 # choices=[50, 101, 152], help='the depth of used model'
 
   fuse_method: add # add, mul, concat, none, late, avg, cross_atn, se_atn, pose_atn
   fusion_layers: 5 # the fuse layer number of the model, used for cross attention, se attention, etc.
+  ablation_study: single # choices=[single, multi], help='the ablation study of the model, single means only one layer is used for fusion, multi means multiple layers are used for fusion'
   ckpt_path: checkpoints/SLOW_8x8_R50.pyth # the checkpoint path of the model, used for pre-trained model
 
 train:
@@ -50,10 +51,9 @@ train:
   clip_duration: 1 # clip duration for the video
   uniform_temporal_subsample_num: 8 # num frame from the clip duration, f or define one gait cycle, we need use whole frames.
 
-  # experiment: two_stream, cnn_lstm, cnn, 3dcnn
   attn_map: True # if use the attention map
 
-  experiment: ${model.backbone}_attn_map_${train.attn_map}_${model.fuse_method}_${model.fusion_layers} # the experiment name, used for log path
+  experiment: ${model.backbone}_attn_map_${train.attn_map}_${model.fuse_method}_${model.ablation_study}_${model.fusion_layers} # the experiment name, used for log path
 
   gpu: 0 # choices=[0, 1], help='the gpu number whicht to train'
 

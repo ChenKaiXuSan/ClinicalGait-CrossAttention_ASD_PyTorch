@@ -57,12 +57,11 @@
       "args": [
         "model.backbone=3dcnn",
         "model.model_class_num=3",
-        "train.gpu=1",
-        // "train.clip_duration=1",
-        // "train.uniform_temporal_subsample_num=8",
-        "data.num_workers=0",
+        "model.ablation_study=single",
         "model.fuse_method=pose_atn",
-        "model.fusion_layers=5",
+        "model.fusion_layers=4",
+        "train.gpu=1",
+        "data.num_workers=0",
       ]
     }
   ]
