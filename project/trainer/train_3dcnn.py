@@ -84,6 +84,8 @@ class Res3DCNNTrainer(LightningModule):
 
         assert label.shape[0] == video_preds.shape[0]
 
+        # loss 
+
         loss = F.cross_entropy(video_preds, label.long())
 
         self.log("train/loss", loss, on_epoch=True, on_step=True, batch_size=b)
@@ -255,3 +257,50 @@ class Res3DCNNTrainer(LightningModule):
                 "monitor": "train/loss",
             },
         }
+
+# TODO：这里计算loss
+# logits_cls: (B, K)
+# side_preds: list of Pi, each (B, J, Ti, Hi, Wi)  —— 侧头logits
+# doctor_hm:  (B, J, T, H, W)  —— 医生关节热图 in [0,1]
+# visible_mask: (B, J, T, H, W) or None
+def pose_attn_loss(logits_cls, side_preds, doctor_hm, visible_mask=None):
+    # logits_cls: (B, K)
+    # side_preds: list of Pi, each (B, J, Ti, Hi, Wi)  —— 侧头logits
+    # doctor_hm:  (B, J, T, H, W)  —— 医生关节热图 in [0,1]
+    # visible_mask: (B, J, T, H, W) or None
+
+    loss = criterion_cls(logits_cls, labels) * 1.0  # L_cls
+
+    lambda_list = [0.25, 0.5, 0.75, 1.0]  # 对应选择的层
+    w_bg, w_temp, w_cons = 0.2, 0.05, 0.05
+
+    prev_up = None
+    for Pi, lam in zip(side_preds, lambda_list):
+        Ti, Hi, Wi = Pi.shape[2:]
+        Ai = resize_3d(doctor_hm, (Ti, Hi, Wi))
+        if visible_mask is not None:
+            Mi = resize_3d(visible_mask, (Ti, Hi, Wi))
+            attn_loss = bce_dice_loss(Pi*Mi, Ai*Mi)
+        else:
+            attn_loss = bce_dice_loss(Pi, Ai)
+        loss = loss + lam * attn_loss
+
+        # 背景抑制
+        A_union = Ai.max(dim=1, keepdim=True).values  # (B,1,Ti,Hi,Wi)
+        A_bg = (1 - A_union).clamp(0,1)
+        bg_logits = bg_head_from_same_layer(Pi)       # 你实现的背景头
+        loss = loss + w_bg * bce_dice_loss(bg_logits, A_bg)
+
+        # 时间平滑
+        if Ti > 1:
+            loss = loss + w_temp * temporal_tv_l1(Pi)
+
+        # 层间一致性（可选）：和上一层的预测对齐
+        if prev_up is not None:
+            Pi_up = resize_3d(Pi, prev_up.shape[2:])      # 或把 prev_up 下采样到当前
+            with torch.no_grad():
+                tgt = torch.sigmoid(prev_up)
+            pred = torch.sigmoid(Pi_up) + 1e-6
+            cons = (tgt * (tgt.add(1e-6).log() - pred.log())).mean()  # KL(tgt||pred)
+            loss = loss + w_cons * cons
+        prev_up = Pi

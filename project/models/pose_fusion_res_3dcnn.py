@@ -110,6 +110,8 @@ class PoseFusionRes3DCNN(BaseModel):
                 )
                 x = self.attn_fusions[idx](x, attn_resized)
         x = self.blocks[5](x)
+
+        # TODO: 这里应该返回 logits，各个网络层生成的attn map
         return x
 
     def save_attention_maps(self, save_dir: str = "fusion_vis") -> None:
