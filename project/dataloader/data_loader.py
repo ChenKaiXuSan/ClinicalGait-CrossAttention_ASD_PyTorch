@@ -229,7 +229,10 @@ class WalkDataModule(LightningDataModule):
             for _ in range(gait_num):
 
                 if disease in disease_to_num_mapping_Dict[self._class_num].keys():
-
+                    
+                    assert disease_to_num_mapping_Dict[self._class_num][
+                        disease ] == i["label"], "The disease label mapping is not correct!"
+                    
                     batch_label.append(
                         disease_to_num_mapping_Dict[self._class_num][disease]
                     )

@@ -42,7 +42,9 @@ from project.dataloader.data_loader import WalkDataModule
 # select different experiment trainer
 #####################################
 
-from project.trainer.train_3dcnn import Res3DCNNTrainer
+from project.trainer.mid.train_pose_attn import PoseAttnTrainer
+from project.trainer.early.train_early_fusion import EarlyFusion3DCNNTrainer
+from project.trainer.late.train_late_fusion import LateFusion3DCNNTrainer
 
 from project.cross_validation import DefineCrossValidation
 
@@ -64,8 +66,20 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
     seed_everything(42, workers=True)
 
     # * select experiment
+    # TODO: add more experiment trainer here.
     if hparams.model.backbone == "3dcnn":
-        classification_module = Res3DCNNTrainer(hparams)
+        if hparams.model.fuse_method == "pose_atn":
+            classification_module = PoseAttnTrainer(hparams)
+        # elif hparams.model.fuse_method == "se_atn":
+        #     classification_module = SEAttentionTrainer(hparams)
+        # elif hparams.model.fuse_method == "cross_atn":
+        #     classification_module = CrossAttentionTrainer(hparams)
+        elif hparams.model.fuse_method in ["none", "add", "mul", "concat", "late"]:
+            classification_module = EarlyFusion3DCNNTrainer(hparams)
+        elif hparams.model.fuse_method == "avg":
+            classification_module = LateFusion3DCNNTrainer(hparams)
+        else:
+            raise ValueError("the experiment fuse method is not supported.")
     else:
         raise ValueError("the experiment backbone is not supported.")
 

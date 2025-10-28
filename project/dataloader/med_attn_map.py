@@ -158,6 +158,7 @@ class MedAttnMap:
 
                 attn_maps.append(heatmap)
 
+            # TODO: 这里可以将不同关键的信息都保存下来
             attn_stack = torch.stack(attn_maps, dim=0)  # [K, H, W]
             attn_mean = torch.mean(attn_stack, dim=0).unsqueeze(0)
 

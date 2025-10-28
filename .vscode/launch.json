@@ -57,7 +57,7 @@
       "args": [
         "model.backbone=3dcnn",
         "model.model_class_num=3",
-        "model.ablation_study=single",
+        "model.ablation_study=multi",
         "model.fuse_method=pose_atn",
         "model.fusion_layers=4",
         "train.gpu=1",
