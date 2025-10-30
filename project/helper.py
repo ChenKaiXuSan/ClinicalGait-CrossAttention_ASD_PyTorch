@@ -127,12 +127,12 @@ def save_metrics(
 
     save_path = Path(save_path) / "metrics.txt"
 
-    _accuracy = MulticlassAccuracy(num_class).cuda()
-    _precision = MulticlassPrecision(num_class).cuda()
-    _recall = MulticlassRecall(num_class).cuda()
-    _f1_score = MulticlassF1Score(num_class).cuda()
-    _auroc = MulticlassAUROC(num_class).cuda()
-    _confusion_matrix = MulticlassConfusionMatrix(num_class, normalize="true").cuda()
+    _accuracy = MulticlassAccuracy(num_class)
+    _precision = MulticlassPrecision(num_class)
+    _recall = MulticlassRecall(num_class)
+    _f1_score = MulticlassF1Score(num_class)
+    _auroc = MulticlassAUROC(num_class)
+    _confusion_matrix = MulticlassConfusionMatrix(num_class, normalize="true")
 
     logger.info("*" * 100)
     logger.info("accuracy: %s" % _accuracy(all_pred, all_label))
@@ -177,7 +177,7 @@ def save_CM(
     if save_path.exists() is False:
         save_path.mkdir(parents=True)
 
-    _confusion_matrix = MulticlassConfusionMatrix(num_class, normalize="true").cuda()
+    _confusion_matrix = MulticlassConfusionMatrix(num_class, normalize="true")
 
     logger.info("_confusion_matrix: %s" % _confusion_matrix(all_pred, all_label))
 
