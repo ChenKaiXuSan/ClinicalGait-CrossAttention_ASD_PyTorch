@@ -100,7 +100,7 @@ class PoseAttnTrainer(LightningModule):
         self,
         side_preds: list[torch.Tensor],  # 每层侧头 logits: (B,J,Ti,Hi,Wi)
         doctor_hm: torch.Tensor,  # (B,J,T,H,W) in [0,1]
-        visible_mask: torch.Tensor | None,  # (B,J,T,H,W) or None
+        visible_mask: torch.Tensor,  # (B,J,T,H,W) or None
     ) -> dict[str, torch.Tensor]:
         if len(side_preds) == 0:
             z = doctor_hm.new_zeros(())
