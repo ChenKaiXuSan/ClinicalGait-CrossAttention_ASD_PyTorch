@@ -42,7 +42,7 @@ from torchmetrics.classification import (
 )
 
 from project.models.pose_fusion_res_3dcnn import PoseFusionRes3DCNN
-from project.helper import save_helper
+from project.utils.helper import save_helper
 
 logger = logging.getLogger(__name__)
 

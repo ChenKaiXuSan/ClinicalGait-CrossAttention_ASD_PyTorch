@@ -63,6 +63,22 @@
         "train.gpu=1",
         "data.num_workers=0",
       ]
+    },
+    {
+      "name": "baseline", 
+      "type": "debugpy",
+      "request": "launch",
+      "module": "project.main",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "args": [
+        "model.backbone=3dcnn",
+        "model.model_class_num=3",
+        "model.fuse_method=none",
+        "train.gpu=1",
+        "data.num_workers=0",
+      ]
     }
   ]
 }

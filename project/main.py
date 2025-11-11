@@ -42,6 +42,10 @@ from project.dataloader.data_loader import WalkDataModule
 # select different experiment trainer
 #####################################
 
+# baseline
+from project.trainer.baseline.train_3dcnn import Res3DCNNTrainer
+
+# attention based
 from project.trainer.mid.train_pose_attn import PoseAttnTrainer
 from project.trainer.early.train_early_fusion import EarlyFusion3DCNNTrainer
 from project.trainer.late.train_late_fusion import LateFusion3DCNNTrainer
@@ -74,10 +78,12 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         #     classification_module = SEAttentionTrainer(hparams)
         # elif hparams.model.fuse_method == "cross_atn":
         #     classification_module = CrossAttentionTrainer(hparams)
-        elif hparams.model.fuse_method in ["none", "add", "mul", "concat", "late"]:
+        elif hparams.model.fuse_method in ["add", "mul", "concat", "avg"]:
             classification_module = EarlyFusion3DCNNTrainer(hparams)
-        elif hparams.model.fuse_method == "avg":
+        elif hparams.model.fuse_method == "late":
             classification_module = LateFusion3DCNNTrainer(hparams)
+        elif hparams.model.fuse_method == "none":
+            classification_module = Res3DCNNTrainer(hparams)
         else:
             raise ValueError("the experiment fuse method is not supported.")
     else:
@@ -135,10 +141,6 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
             lr_monitor,
             DeviceStatsMonitor(),  # monitor the device stats.
         ],
-        # fast_dev_run=hparams.train.fast_dev_run,  # if use fast dev run for debug.
-        # limit_train_batches=2,
-        # limit_val_batches=2,
-        # limit_test_batches=2,
     )
 
     trainer.fit(classification_module, data_module)
@@ -149,7 +151,7 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         data_module,
         ckpt_path="best",
     )
-
+    
 
 @hydra.main(
     version_base=None,

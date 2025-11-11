@@ -8,5 +8,9 @@
 			"name": "data",
 			"path": "/workspace/data"
 		},
+		{
+			"name": "KnowledgeGuided-ASD_PyTorch",
+			"path": "../../KnowledgeGuided-ASD_PyTorch"
+		}
 	]
 }
