@@ -68,25 +68,16 @@ def _select_module(hparams: DictConfig):
         raise ValueError(f"Unsupported fuse_method: {fm}")
 
 
-_CKPT_REGEX = re.compile(
-    r"epoch=(?P<epoch>\d+)-val/loss=(?P<vloss>[0-9.]+)-val/video_acc=(?P<vacc>[0-9.]+)\.ckpt$"
-)
-
 
 def _parse_ckpt_metric(path: str) -> Optional[Tuple[int, float, float]]:
     """Parse epoch, val_loss, val_acc from checkpoint filename."""
-    base = os.path.basename(path)
-    m = _CKPT_REGEX.match(base)
-    if not m:
-        return None
-    try:
-        epoch = int(m.group("epoch"))
-        vloss = float(m.group("vloss"))
-        vacc = float(m.group("vacc"))
-        return epoch, vloss, vacc
-    except Exception:
-        return None
 
+    base = os.path.basename(path)
+    epoch, vloss, vacc = base.split("-")[0:3]
+    vacc = vacc.replace(".ckpt", "")
+    
+    return int(epoch), float(vloss), float(vacc)
+    
 
 def _find_best_ckpt_for_fold(log_path: str, fold: str | int) -> Optional[str]:
     """
@@ -107,6 +98,8 @@ def _find_best_ckpt_for_fold(log_path: str, fold: str | int) -> Optional[str]:
     best_acc = -math.inf
 
     for p in candidates:
+        if "last.ckpt" in os.path.basename(p).lower():
+            continue
         parsed = _parse_ckpt_metric(p)
         if parsed is None:
             continue
@@ -226,7 +219,7 @@ def _eval_one_fold(hparams: DictConfig, dataset_idx, fold: int) -> Dict[str, flo
     datamodule = WalkDataModule(hparams, dataset_idx)
 
     # locate ckpt
-    ckpt = _find_best_ckpt_for_fold(hparams.train.log_path, fold)
+    ckpt = _find_best_ckpt_for_fold(hparams.eval.input_path, fold)
     if ckpt:
         logger.info(f"[fold {fold}] Using checkpoint: {ckpt}")
     else:
@@ -257,7 +250,7 @@ def _eval_one_fold(hparams: DictConfig, dataset_idx, fold: int) -> Dict[str, flo
 @hydra.main(
     version_base=None,
     config_path="../configs",
-    config_name="config.yaml",
+    config_name="eval.yaml",
 )
 def main(config: DictConfig):
     """
@@ -303,7 +296,7 @@ def main(config: DictConfig):
     logger.info("#" * 60)
 
     # Save
-    out_dir = config.train.log_path
+    out_dir = config.eval.log_path
     json_path, csv_path = _save_outputs(out_dir, per_fold_results, aggregate_stats)
     logger.info(f"Saved evaluation results:\n  JSON: {json_path}\n  CSV : {csv_path}")
     logger.info("Finished EVALUATION over all folds.")

@@ -170,7 +170,7 @@ class Res3DCNNTrainer(LightningModule):
 
         b, c, t, h, w = video.shape
 
-        video_preds, aux = self.model(video, attn_map, return_aux=True)
+        video_preds = self.model(video, attn_map)
         video_preds_softmax = torch.softmax(video_preds, dim=1)
 
         loss = F.cross_entropy(video_preds, label.long())
@@ -192,16 +192,22 @@ class Res3DCNNTrainer(LightningModule):
         }
         self.log_dict(metric_dict, on_epoch=True, on_step=True, batch_size=b)
 
+        # prepare video info
+        video_info = []
+        for one_video in batch['info']:
+            for i in range(one_video['video'].shape[0]):
+                video_info.append(one_video['video_name'])
+
         dump_all_feature_maps(
             model=self.model,
             video=video,
+            video_info=video_info,
             attn_map=attn_map,
             save_root=f"{self.logger.save_dir}/test_all_feature_maps/epoch_{self.current_epoch}/batch_{batch_idx}",
             include_types=(torch.nn.Conv3d, torch.nn.Linear),
+            include_name_contains=["conv_c"],
             resize_to=(256, 256),  # 指定输出大小
             resize_mode="bilinear",  # 放大更平滑
-            color=True,
-            overlay=False,
         )
 
         return video_preds_softmax, video_preds

@@ -1,10 +1,10 @@
 # hydra config
 hydra:
   run:
-    dir: ${train.log_path} # the log path, used for log and checkpoint
+    dir: ${eval.log_path} # the log path, used for log and checkpoint
   sweep:
-    dir: logs/
-    subdir: ${train.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: logs/eval/
+    subdir: ${eval.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
   sweeper:
     params:
       model.fuse_method: pose_atn
@@ -31,7 +31,7 @@ data:
   img_size: 224
   sampling: "over" # over, under, none
 
-  batch_size: 1 # this used for default method, without gait cycle defined method.
+  batch_size: 2 # this used for default method, without gait cycle defined method.
 
 model:
   backbone: 3dcnn # choices=[3dcnn, 2dcnn, cnn_lstm, two_stream], help='the backbone of the model'
@@ -62,3 +62,8 @@ train:
 
   fast_dev_run: False # if use the fast_dev_run
   fold: 5 # the fold number of the cross validation
+
+eval:
+  gpu: 0 # choices=[0, 1], help='the gpu number whicht to eval'
+  input_path: /workspace/code/logs_bak/3dcnn_attn_map_True_se_atn_0/2025-06-26/15-06-12
+  log_path: ${eval.input_path}/eval_results/
