@@ -12,5 +12,20 @@
 			"name": "KnowledgeGuided-ASD_PyTorch",
 			"path": "../../KnowledgeGuided-ASD_PyTorch"
 		}
-	]
+	],
+	"settings": {
+		"python-envs.pythonProjects": [
+			{
+				"path": "",
+				"envManager": "ms-python.python:conda",
+				"packageManager": "ms-python.python:conda"
+			},
+			{
+				"path": "logs",
+				"envManager": "ms-python.python:venv",
+				"packageManager": "ms-python.python:pip",
+				"workspace": "code"
+			}
+		]
+	}
 }

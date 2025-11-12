@@ -2,9 +2,10 @@
 #PBS -A SKIING                        # ✅ 项目名（必须修改）
 #PBS -q gen_S                        # ✅ 队列名（gpu / debug / gen_S）
 #PBS -l elapstim_req=24:00:00         # ⏱ 运行时间限制（最多 24 小时）
-#PBS -N se_atn_train                     # 🏷 作业名称
-#PBS -o logs/pegasus/train_se_atn_out.log            # 📤 标准输出日志
-#PBS -e logs/pegasus/train_se_atn_err.log            # ❌ 错误输出日志
+#PBS -N se_atn_single_train                     # 🏷 作业名称
+#PBS -t 0-4                     # 🗂 作业数组（可选，0-4 表示 5 个任务）
+#PBS -o logs/pegasus/train_se_atn_single_out_fusion_${PBS_SUBREQNO}.log            # 📤 标准输出日志
+#PBS -e logs/pegasus/train_se_atn_single_err_fusion_${PBS_SUBREQNO}.log            # ❌ 错误输出日志
 
 # === 切换到作业提交目录 ===
 cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
@@ -13,7 +14,7 @@ mkdir -p logs/pegasus/
 mkdir -p checkpoints/
 
 # === 下载预训练模型（如果需要） ===
-# wget -O /home/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch/checkpoints/SLOW_8x8_R50.pyth https://dl.fbaipublicfiles.com/pytorchvideo/model_zoo/kinetics/SLOW_8x8_R50.pyth
+# wget -O /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch/checkpoints/SLOW_8x8_R50.pyth https://dl.fbaipublicfiles.com/pytorchvideo/model_zoo/kinetics/SLOW_8x8_R50.pyth
 
 # === 加载 Python + 激活 Conda 环境 ===
 module load intelpython/2022.3.1
@@ -36,4 +37,4 @@ echo "Current Model load path: $(ls checkpoints/SLOW_8x8_R50.pyth)"
 root_path=/work/SKIING/chenkaixu/data/asd_dataset
 
 # === 运行你的训练脚本（Hydra 参数可以加在后面）===
-python -m project.main data.root_path=${root_path} model.fuse_method=se_atn train.fold=10 data.num_workers=$((NUM_WORKERS / 3))
+python -m project.main data.root_path=${root_path} model.fuse_method=se_atn train.fold=5 data.num_workers=$((NUM_WORKERS / 3)) model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single

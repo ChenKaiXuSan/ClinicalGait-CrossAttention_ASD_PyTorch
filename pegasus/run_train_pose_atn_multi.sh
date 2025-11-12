@@ -2,10 +2,10 @@
 #PBS -A SKIING                        # ✅ 项目名（必须修改）
 #PBS -q gen_S                        # ✅ 队列名（gpu / debug / gen_S）
 #PBS -l elapstim_req=24:00:00         # ⏱ 运行时间限制（最多 24 小时）
-#PBS -N pose_atn_mult_train                     # 🏷 作业名称
-#PBS -t 0-5                     # 🗂 作业数组（可选，0-4 表示 5 个任务）
-#PBS -o logs/pegasus/train_pose_atn_out_fusion_${PBS_SUBREQNO}.log            # 📤 标准输出日志
-#PBS -e logs/pegasus/train_pose_atn_err_fusion_${PBS_SUBREQNO}.log            # ❌ 错误输出日志
+#PBS -N pose_atn_multi_train                     # 🏷 作业名称
+#PBS -t 0-4                     # 🗂 作业数组（可选，0-4 表示 5 个任务）
+#PBS -o logs/pegasus/train_pose_atn_multi_out_fusion_${PBS_SUBREQNO}.log            # 📤 标准输出日志
+#PBS -e logs/pegasus/train_pose_atn_multi_err_fusion_${PBS_SUBREQNO}.log            # ❌ 错误输出日志
 
 # === 切换到作业提交目录 ===
 cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
@@ -37,4 +37,4 @@ echo "Current Model load path: $(ls checkpoints/SLOW_8x8_R50.pyth)"
 root_path=/work/SKIING/chenkaixu/data/asd_dataset
 
 # === 运行你的训练脚本（Hydra 参数可以加在后面）===
-python -m project.main data.root_path=${root_path} model.fuse_method=pose_atn train.fold=10 data.num_workers=$((NUM_WORKERS / 3)) model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=multi
+python -m project.main data.root_path=${root_path} model.fuse_method=pose_atn train.fold=5 data.num_workers=$((NUM_WORKERS / 3)) model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=multi

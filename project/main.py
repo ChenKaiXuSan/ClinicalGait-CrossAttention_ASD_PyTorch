@@ -47,6 +47,7 @@ from project.trainer.baseline.train_3dcnn import Res3DCNNTrainer
 
 # attention based
 from project.trainer.mid.train_pose_attn import PoseAttnTrainer
+from project.trainer.mid.train_se_attn import SEAttnTrainer
 from project.trainer.early.train_early_fusion import EarlyFusion3DCNNTrainer
 from project.trainer.late.train_late_fusion import LateFusion3DCNNTrainer
 
@@ -74,8 +75,8 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
     if hparams.model.backbone == "3dcnn":
         if hparams.model.fuse_method == "pose_atn":
             classification_module = PoseAttnTrainer(hparams)
-        # elif hparams.model.fuse_method == "se_atn":
-        #     classification_module = SEAttentionTrainer(hparams)
+        elif hparams.model.fuse_method == "se_atn":
+            classification_module = SEAttnTrainer(hparams)
         # elif hparams.model.fuse_method == "cross_atn":
         #     classification_module = CrossAttentionTrainer(hparams)
         elif hparams.model.fuse_method in ["add", "mul", "concat", "avg"]:
@@ -93,13 +94,13 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
 
     # for the tensorboard
     tb_logger = TensorBoardLogger(
-        save_dir=os.path.join(hparams.train.log_path),
-        name=str(fold),  # here should be str type.
+        save_dir=os.path.join(hparams.train.log_path, "tb_logs"),
+        name="fold_" + str(fold),  # here should be str type.
     )
 
     cvs_logger = CSVLogger(
         save_dir=os.path.join(hparams.train.log_path, "csv_logs"),
-        name=str(fold) + "_csv",  # here should be str type.
+        name="fold_" + str(fold) + "_csv",  # here should be str type.
     )
 
     # some callbacks
@@ -108,6 +109,9 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
 
     # define the checkpoint becavier.
     model_check_point = ModelCheckpoint(
+        dirpath=os.path.join(
+            hparams.train.log_path, "checkpoints", "fold_" + str(fold)
+        ),
         filename="{epoch}-{val/loss:.2f}-{val/video_acc:.4f}",
         auto_insert_metric_name=False,
         monitor="val/video_acc",
@@ -141,6 +145,8 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
             lr_monitor,
             DeviceStatsMonitor(),  # monitor the device stats.
         ],
+        limit_train_batches=2,
+        limit_val_batches=2,
     )
 
     trainer.fit(classification_module, data_module)
@@ -151,7 +157,7 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         data_module,
         ckpt_path="best",
     )
-    
+
 
 @hydra.main(
     version_base=None,

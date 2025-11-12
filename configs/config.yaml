@@ -11,10 +11,17 @@ hydra:
       model.fusion_layers: 0, 1, 2, 3, 4, 5
       model.backbone: 3dcnn
 
-optimizer:
+loss:
   lr: 0.0001
-  beta1: 0.5
-  beta2: 0.999
+  beta1: 0.5 # decapture 
+  beta2: 0.999 # decapture
+
+  selection: ["cls", "attn_loss", "bg", "tmp"] # the loss selection for the total loss
+
+  lambda_list: [0.25, 0.5, 0.75, 1.0] # the lambda list for the total loss 
+  w_bg: 0.2 # the weight of background class for the loss function, used for cross validation with different class number
+  w_temp: 0.05 # the weight of temporal smoothness for the loss function, used for cross validation with different class number
+
 
 data:
   root_path: /workspace/data

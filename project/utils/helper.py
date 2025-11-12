@@ -12,7 +12,6 @@ The saved items include:
 1. the prediction and label for the further analysis.
 2. the metrics for the model evaluation.
 3. the confusion matrix for the model evaluation.
-4. the class activation map for the model evaluation.
 
 This script is executed at the end of each training in main.py file.
 

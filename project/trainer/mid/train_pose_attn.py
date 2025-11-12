@@ -5,7 +5,7 @@ Created Date: 2023-10-19 02:29:47
 Author: chenkaixu
 -----
 Comment:
- This file is the train/val/test process for the project.
+ This file is the train/val/test process for the Pose Attention model.
 
 
 Have a good code time!
@@ -16,12 +16,6 @@ Modified By: the developer formerly known as Kaixu Chen at <chenkaixusan@gmail.c
 HISTORY:
 Date 	By 	Comments
 ------------------------------------------------
-
-08-05-2025	Kaixu Chen	split the model into individual file, and add the resnet model.
-
-22-03-2024	Kaixu Chen	add different class number mapping, now the class number is a hyperparameter.
-
-14-12-2023	Kaixu Chen refactor the code, now it a simple code to train video frame from dataloader.
 
 """
 
@@ -44,6 +38,8 @@ from torchmetrics.classification import (
 from project.models.pose_fusion_res_3dcnn import PoseFusionRes3DCNN
 from project.utils.helper import save_helper
 
+from project.utils.save_CAM import dump_all_feature_maps
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,9 +48,27 @@ class PoseAttnTrainer(LightningModule):
         super().__init__()
         self.save_hyperparameters()  # 先保存，方便 ckpt/repro
 
-        self.img_size = hparams.data.img_size
-        self.lr = float(hparams.optimizer.lr)
-        self.num_classes = int(hparams.model.model_class_num)
+        self.img_size = getattr(hparams.data, "img_size", 224)
+
+        self.lr = getattr(hparams.loss, "lr", 1e-4)
+        self.num_classes = getattr(hparams.model, "model_class_num", 3)
+
+        # * ablation: loss components
+        self.lambda_list = list(
+            getattr(hparams.loss, "lambda_list", [0.25, 0.5, 0.75, 1.0])
+        )
+        self.w_bg = float(getattr(hparams.loss, "w_bg", 0.2))
+        self.w_temp = float(getattr(hparams.loss, "w_temp", 0.05))
+
+        self.loss_selection = list(
+            getattr(
+                hparams.loss,
+                "selection",
+                ["cls", "attn_loss", "bg", "tmp"],
+            )
+        )
+
+        logger.info(f"Using loss selection: {self.loss_selection}")
 
         # define model
         self.model = PoseFusionRes3DCNN(hparams)
@@ -66,12 +80,7 @@ class PoseAttnTrainer(LightningModule):
         self._f1_score = MulticlassF1Score(num_classes=self.num_classes)
         self._confusion_matrix = MulticlassConfusionMatrix(num_classes=self.num_classes)
 
-        # loss 权重（可在 YAML 覆盖）
-        self.lambda_list = list(
-            getattr(self.hparams, "lambda_list", [0.25, 0.5, 0.75, 1.0])
-        )
-        self.w_bg = float(getattr(self.hparams, "w_bg", 0.2))
-        self.w_temp = float(getattr(self.hparams, "w_temp", 0.05))
+        self.save_root = getattr(hparams.train, "log_path", "./logs")
 
     # ------------------- small helpers -------------------
     @staticmethod
@@ -98,28 +107,31 @@ class PoseAttnTrainer(LightningModule):
 
     def _compute_attn_losses(
         self,
+        logits: torch.Tensor,  # (B,C,T,H,W)
+        label: torch.Tensor,  # (B,C,T,H,W) in [0,1]
         side_preds: list[torch.Tensor],  # 每层侧头 logits: (B,J,Ti,Hi,Wi)
         doctor_hm: torch.Tensor,  # (B,J,T,H,W) in [0,1]
-        visible_mask: torch.Tensor,  # (B,J,T,H,W) or None
     ) -> dict[str, torch.Tensor]:
-        if len(side_preds) == 0:
-            z = doctor_hm.new_zeros(())
-            return {"attn": z, "bg": z, "tmp": z}
-
         loss_attn_total = doctor_hm.new_zeros(())
         loss_bg_total = doctor_hm.new_zeros(())
         loss_tmp_total = doctor_hm.new_zeros(())
 
-        prev_up = None
+        if "cls" not in self.loss_selection:
+            assert False, "Classification loss must be included in loss selection."
+        if "attn_loss" not in self.loss_selection and len(side_preds) > 0:
+            self.lambda_list = [0.0 for _ in side_preds]
+        if "bg" not in self.loss_selection:
+            self.w_bg = 0.0
+        if "tmp" not in self.loss_selection:
+            self.w_temp = 0.0
+
+        loss_cls = F.cross_entropy(logits, label.long())
+
         for i, Pi in enumerate(side_preds):
             Ti, Hi, Wi = Pi.shape[2:]
             Ai = self._resize_3d(doctor_hm, (Ti, Hi, Wi))
 
-            if visible_mask is not None:
-                Mi = self._resize_3d(visible_mask, (Ti, Hi, Wi))
-                attn_loss = self._bce_dice_loss(Pi * Mi, Ai * Mi)
-            else:
-                attn_loss = self._bce_dice_loss(Pi, Ai)
+            attn_loss = self._bce_dice_loss(Pi, Ai)
 
             # 背景抑制：并集 → 背景
             A_union = Ai.max(dim=1, keepdim=True).values
@@ -133,18 +145,17 @@ class PoseAttnTrainer(LightningModule):
             P_sig = torch.sigmoid(Pi)
             tmp_loss = self._temporal_tv_l1(P_sig)
 
-            lam = (
-                self.lambda_list[i]
-                if i < len(self.lambda_list)
-                else self.lambda_list[-1]
-            )
+            lam = self.lambda_list[i]
             loss_attn_total = loss_attn_total + lam * attn_loss
             loss_bg_total = loss_bg_total + self.w_bg * bg_loss
             loss_tmp_total = loss_tmp_total + self.w_temp * tmp_loss
 
-            prev_up = Pi  # 若后续需要层间一致性，可在此加入 KL 蒸馏
-
-        return {"attn": loss_attn_total, "bg": loss_bg_total, "tmp": loss_tmp_total}
+        return {
+            "cls": loss_cls,
+            "attn": loss_attn_total,
+            "bg": loss_bg_total,
+            "tmp": loss_tmp_total,
+        }
 
     # ------------------- training / validation -------------------
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int):
@@ -152,46 +163,54 @@ class PoseAttnTrainer(LightningModule):
         attn_map: torch.Tensor = batch["attn_map"]
         labels: torch.Tensor = batch["label"].long()
         B = video.size(0)
-        visible_mask: torch.Tensor | None = batch.get("attn_mask", None)
 
         out = self.model(video, attn_map, return_aux=True)
         logits, aux = out if isinstance(out, tuple) else (out, {"side_preds": []})
 
-        probs = torch.softmax(logits, dim=1)
-        loss_cls = F.cross_entropy(logits, labels)
-
-        attn_losses = self._compute_attn_losses(
-            aux.get("side_preds", []), doctor_hm=attn_map, visible_mask=visible_mask
+        attn_loss = self._compute_attn_losses(
+            logits=logits,
+            label=labels,
+            side_preds=aux.get("side_preds", []),
+            doctor_hm=attn_map,
         )
+
         loss_total = (
-            loss_cls + attn_losses["attn"] + attn_losses["bg"] + attn_losses["tmp"]
+            attn_loss["cls"] + attn_loss["attn"] + attn_loss["bg"] + attn_loss["tmp"]
         )
 
         # logging
         self.log("train/loss", loss_total, on_step=True, on_epoch=True, batch_size=B)
-        self.log("train/loss_cls", loss_cls, on_step=True, on_epoch=True, batch_size=B)
+        self.log(
+            "train/loss_cls",
+            attn_loss["cls"],
+            on_step=True,
+            on_epoch=True,
+            batch_size=B,
+        )
         if len(aux.get("side_preds", [])) > 0:
             self.log(
                 "train/loss_attn",
-                attn_losses["attn"],
+                attn_loss["attn"],
                 on_step=True,
                 on_epoch=True,
                 batch_size=B,
             )
             self.log(
                 "train/loss_bg",
-                attn_losses["bg"],
+                attn_loss["bg"],
                 on_step=True,
                 on_epoch=True,
                 batch_size=B,
             )
             self.log(
                 "train/loss_tmp",
-                attn_losses["tmp"],
+                attn_loss["tmp"],
                 on_step=True,
                 on_epoch=True,
                 batch_size=B,
             )
+
+        probs = torch.softmax(logits, dim=1)
 
         self.log_dict(
             {
@@ -207,8 +226,8 @@ class PoseAttnTrainer(LightningModule):
 
         logger.info(
             f"train loss: {loss_total.item():.4f} "
-            f"(cls {loss_cls.item():.4f} | attn {attn_losses['attn'].item():.4f} | "
-            f"bg {attn_losses['bg'].item():.4f} | tmp {attn_losses['tmp'].item():.4f})"
+            f"(cls {attn_loss['cls'].item():.4f} | attn {attn_loss['attn'].item():.4f} | "
+            f"bg {attn_loss['bg'].item():.4f} | tmp {attn_loss['tmp'].item():.4f})"
         )
         return loss_total
 
@@ -218,42 +237,46 @@ class PoseAttnTrainer(LightningModule):
         attn_map: torch.Tensor = batch["attn_map"]
         labels: torch.Tensor = batch["label"].long()
         B = video.size(0)
-        visible_mask: torch.Tensor | None = batch.get("attn_mask", None)
 
         out = self.model(video, attn_map, return_aux=True)
         logits, aux = out if isinstance(out, tuple) else (out, {"side_preds": []})
 
         probs = torch.softmax(logits, dim=1)
-        loss_cls = F.cross_entropy(logits, labels)
 
-        attn_losses = self._compute_attn_losses(
-            aux.get("side_preds", []), doctor_hm=attn_map, visible_mask=visible_mask
+        attn_loss = self._compute_attn_losses(
+            logits=logits,
+            label=labels,
+            side_preds=aux.get("side_preds", []),
+            doctor_hm=attn_map,
         )
+
         loss_total = (
-            loss_cls + attn_losses["attn"] + attn_losses["bg"] + attn_losses["tmp"]
+            attn_loss["cls"] + attn_loss["attn"] + attn_loss["bg"] + attn_loss["tmp"]
         )
 
         # 建议验证只 on_epoch 记录，减少噪声
         self.log("val/loss", loss_total, on_step=False, on_epoch=True, batch_size=B)
-        self.log("val/loss_cls", loss_cls, on_step=False, on_epoch=True, batch_size=B)
+        self.log(
+            "val/loss_cls", attn_loss["cls"], on_step=False, on_epoch=True, batch_size=B
+        )
         if len(aux.get("side_preds", [])) > 0:
             self.log(
                 "val/loss_attn",
-                attn_losses["attn"],
+                attn_loss["attn"],
                 on_step=False,
                 on_epoch=True,
                 batch_size=B,
             )
             self.log(
                 "val/loss_bg",
-                attn_losses["bg"],
+                attn_loss["bg"],
                 on_step=False,
                 on_epoch=True,
                 batch_size=B,
             )
             self.log(
                 "val/loss_tmp",
-                attn_losses["tmp"],
+                attn_loss["tmp"],
                 on_step=False,
                 on_epoch=True,
                 batch_size=B,
@@ -273,8 +296,8 @@ class PoseAttnTrainer(LightningModule):
 
         logger.info(
             f"val loss: {loss_total.item():.4f} "
-            f"(cls {loss_cls.item():.4f} | attn {attn_losses['attn'].item():.4f} | "
-            f"bg {attn_losses['bg'].item():.4f} | tmp {attn_losses['tmp'].item():.4f})"
+            f"(cls {attn_loss['cls'].item():.4f} | attn {attn_loss['attn'].item():.4f} | "
+            f"bg {attn_loss['bg'].item():.4f} | tmp {attn_loss['tmp'].item():.4f})"
         )
         return {"val_loss": loss_total}
 
@@ -291,12 +314,22 @@ class PoseAttnTrainer(LightningModule):
         B = video.size(0)
 
         out = self.model(video, attn_map, return_aux=False)
-        logits = out if isinstance(out, torch.Tensor) else out[0]
+        logits, aux = out
+
+        attn_loss = self._compute_attn_losses(
+            logits=logits,
+            label=labels,
+            side_preds=aux.get("side_preds", []),
+            doctor_hm=attn_map,
+        )
+
+        loss_total = (
+            attn_loss["cls"] + attn_loss["attn"] + attn_loss["bg"] + attn_loss["tmp"]
+        )
+
+        self.log("test/loss", loss_total, on_step=False, on_epoch=True, batch_size=B)
+
         probs = torch.softmax(logits, dim=1)
-
-        loss = F.cross_entropy(logits, labels)
-        self.log("test/loss", loss, on_step=False, on_epoch=True, batch_size=B)
-
         self.log_dict(
             {
                 "test/video_acc": self._accuracy(probs, labels),
@@ -311,6 +344,27 @@ class PoseAttnTrainer(LightningModule):
 
         self.test_pred_list.append(probs.detach().cpu())
         self.test_label_list.append(labels.detach().cpu())
+
+        # save feature maps for CAM visualization
+        # * only dump for first 10 batches to save space
+        fold = (
+            getattr(self.logger, "root_dir", "fold").split("/")[-1]
+        ) if self.logger else "fold"
+
+        if batch_idx < 10:
+            dump_all_feature_maps(
+                model=self.model,
+                video=video,
+                video_info=batch.get("info", None),
+                attn_map=attn_map,
+                save_root=self.save_root + f"/test_feature_maps/{fold}/batch_{batch_idx}",
+                include_types=(torch.nn.Conv3d, torch.nn.Linear),
+                include_name_contains=("conv_c", "rgb_conv", "attn_conv", "gate_conv2"),  # 只保存部分层
+                exclude_name_contains=("proj", "head"),  # 排除分类 head
+                resize_to=(self.img_size, self.img_size),
+                resize_mode="bilinear",
+            )
+
         return {"probs": probs, "logits": logits}
 
     def on_test_epoch_end(self) -> None:
@@ -322,7 +376,7 @@ class PoseAttnTrainer(LightningModule):
                 if self.logger
                 else "fold"
             ),
-            save_path=getattr(self.logger, "save_dir", "."),
+            save_path=self.save_root,
             num_class=self.num_classes,
         )
         logger.info("test epoch end")

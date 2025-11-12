@@ -141,7 +141,6 @@ class WalkDataModule(LightningDataModule):
         """
 
         if self._attn_map:
-
             # train dataset
             self.train_gait_dataset = whole_video_dataset(
                 experiment=self._experiment,
@@ -179,7 +178,6 @@ class WalkDataModule(LightningDataModule):
             )
 
         else:
-
             # train dataset
             self.train_gait_dataset = labeled_video_dataset(
                 data_path=self._dataset_idx[2],
@@ -227,12 +225,12 @@ class WalkDataModule(LightningDataModule):
             batch_attn_map.append(i["attn_map"])
 
             for _ in range(gait_num):
-
                 if disease in disease_to_num_mapping_Dict[self._class_num].keys():
-                    
-                    assert disease_to_num_mapping_Dict[self._class_num][
-                        disease ] == i["label"], "The disease label mapping is not correct!"
-                    
+                    assert (
+                        disease_to_num_mapping_Dict[self._class_num][disease]
+                        == i["label"]
+                    ), "The disease label mapping is not correct!"
+
                     batch_label.append(
                         disease_to_num_mapping_Dict[self._class_num][disease]
                     )

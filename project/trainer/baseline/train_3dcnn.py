@@ -50,7 +50,7 @@ class Res3DCNNTrainer(LightningModule):
         super().__init__()
 
         self.img_size = hparams.data.img_size
-        self.lr = hparams.optimizer.lr
+        self.lr = getattr(hparams.loss, "lr", 1e-3)  # default lr
 
         self.num_classes = hparams.model.model_class_num
 
@@ -65,6 +65,8 @@ class Res3DCNNTrainer(LightningModule):
         self._recall = MulticlassRecall(num_classes=self.num_classes)
         self._f1_score = MulticlassF1Score(num_classes=self.num_classes)
         self._confusion_matrix = MulticlassConfusionMatrix(num_classes=self.num_classes)
+
+        self.save_root = getattr(hparams.train, "log_path", "./logs")
 
     def forward(self, x):
         return self.model(x)
@@ -192,23 +194,23 @@ class Res3DCNNTrainer(LightningModule):
         }
         self.log_dict(metric_dict, on_epoch=True, on_step=True, batch_size=b)
 
-        # prepare video info
-        video_info = []
-        for one_video in batch['info']:
-            for i in range(one_video['video'].shape[0]):
-                video_info.append(one_video['video_name'])
-
-        dump_all_feature_maps(
-            model=self.model,
-            video=video,
-            video_info=video_info,
-            attn_map=attn_map,
-            save_root=f"{self.logger.save_dir}/test_all_feature_maps/epoch_{self.current_epoch}/batch_{batch_idx}",
-            include_types=(torch.nn.Conv3d, torch.nn.Linear),
-            include_name_contains=["conv_c"],
-            resize_to=(256, 256),  # 指定输出大小
-            resize_mode="bilinear",  # 放大更平滑
+        fold = (
+            getattr(self.logger, "root_dir", "fold").split("/")[-1]
+            if self.logger
+            else "fold"
         )
+        if batch_idx < 10:
+            dump_all_feature_maps(
+                model=self.model,
+                video=video,
+                video_info=batch.get("info", None),
+                attn_map=attn_map,
+                save_root=f"{self.save_root}/test_all_feature_maps/{fold}/batch_{batch_idx}",
+                include_types=(torch.nn.Conv3d, torch.nn.Linear),
+                include_name_contains=["conv_c"],
+                resize_to=(256, 256),  # 指定输出大小
+                resize_mode="bilinear",  # 放大更平滑
+            )
 
         return video_preds_softmax, video_preds
 
@@ -243,7 +245,7 @@ class Res3DCNNTrainer(LightningModule):
             all_pred=self.test_pred_list,
             all_label=self.test_label_list,
             fold=self.logger.root_dir.split("/")[-1],
-            save_path=self.logger.save_dir,
+            save_path=self.save_root,
             num_class=self.num_classes,
         )
 

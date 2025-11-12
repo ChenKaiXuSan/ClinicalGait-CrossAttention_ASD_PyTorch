@@ -30,12 +30,11 @@ from project.models.base_model import BaseModel
 logger = logging.getLogger(__name__)
 
 fuse_layers_mapping = {
-    0: [],
-    1: [0],
-    2: [0, 1],
-    3: [0, 1, 2],
-    4: [0, 1, 2, 3],
-    5: [0, 1, 2, 3, 4],
+    0: [0],
+    1: [0, 1],
+    2: [0, 1, 2],
+    3: [0, 1, 2, 3],
+    4: [0, 1, 2, 3, 4],
 }
 
 

@@ -35,25 +35,25 @@ from torchmetrics.classification import (
     MulticlassConfusionMatrix,
 )
 
-from project.models.pose_fusion_res_3dcnn import PoseFusionRes3DCNN
-from project.models.se_attn_res_3dcnn import SEFusion3DCNN
+from project.models.se_attn_res_3dcnn import SEFusionRes3DCNN
 
 from project.utils.helper import save_helper
+from project.utils.save_CAM import dump_all_feature_maps
 
 logger = logging.getLogger(__name__)
 
 
-class PoseAttnTrainer(LightningModule):
+class SEAttnTrainer(LightningModule):
     def __init__(self, hparams):
         super().__init__()
         self.save_hyperparameters()  # 先保存，方便 ckpt/repro
 
         self.img_size = hparams.data.img_size
-        self.lr = float(hparams.optimizer.lr)
+        self.lr = getattr(hparams.loss, "lr", 1e-3)  # default lr
         self.num_classes = int(hparams.model.model_class_num)
 
         # define model
-        self.model = PoseFusionRes3DCNN(hparams)
+        self.model = SEFusionRes3DCNN(hparams)
 
         # metrics（torchmetrics 多数支持 logits/probs，内部会做 argmax）
         self._accuracy = MulticlassAccuracy(num_classes=self.num_classes)
@@ -64,83 +64,11 @@ class PoseAttnTrainer(LightningModule):
 
         # loss 权重（可在 YAML 覆盖）
         self.lambda_list = list(
-            getattr(self.hparams, "lambda_list", [0.25, 0.5, 0.75, 1.0])
+            getattr(hparams.loss, "lambda_list", [0.25, 0.5, 0.75, 1.0])
         )
-        self.w_bg = float(getattr(self.hparams, "w_bg", 0.2))
-        self.w_temp = float(getattr(self.hparams, "w_temp", 0.05))
 
-    # ------------------- small helpers -------------------
-    @staticmethod
-    def _resize_3d(x: torch.Tensor, size: tuple[int, int, int]) -> torch.Tensor:
-        return F.interpolate(x, size=size, mode="trilinear", align_corners=False)
+        self.save_root = getattr(hparams.train, "log_path", "./logs")
 
-    @staticmethod
-    def _bce_dice_loss(
-        logits: torch.Tensor, target: torch.Tensor, eps: float = 1e-6
-    ) -> torch.Tensor:
-        bce = F.binary_cross_entropy_with_logits(logits, target)
-        p = torch.sigmoid(logits)
-        inter = (p * target).sum(dim=(1, 2, 3, 4))
-        denom = p.sum(dim=(1, 2, 3, 4)) + target.sum(dim=(1, 2, 3, 4)) + eps
-        dice = 1.0 - (2.0 * inter + eps) / denom
-        return bce + dice.mean()
-
-    @staticmethod
-    def _temporal_tv_l1(prob: torch.Tensor) -> torch.Tensor:
-        # prob: (B,C,T,H,W) in [0,1]
-        if prob.size(2) <= 1:
-            return prob.new_zeros(())
-        return (prob[:, :, 1:] - prob[:, :, :-1]).abs().mean()
-
-    def _compute_attn_losses(
-        self,
-        side_preds: list[torch.Tensor],  # 每层侧头 logits: (B,J,Ti,Hi,Wi)
-        doctor_hm: torch.Tensor,  # (B,J,T,H,W) in [0,1]
-        visible_mask: torch.Tensor,  # (B,J,T,H,W) or None
-    ) -> dict[str, torch.Tensor]:
-        if len(side_preds) == 0:
-            z = doctor_hm.new_zeros(())
-            return {"attn": z, "bg": z, "tmp": z}
-
-        loss_attn_total = doctor_hm.new_zeros(())
-        loss_bg_total = doctor_hm.new_zeros(())
-        loss_tmp_total = doctor_hm.new_zeros(())
-
-        prev_up = None
-        for i, Pi in enumerate(side_preds):
-            Ti, Hi, Wi = Pi.shape[2:]
-            Ai = self._resize_3d(doctor_hm, (Ti, Hi, Wi))
-
-            if visible_mask is not None:
-                Mi = self._resize_3d(visible_mask, (Ti, Hi, Wi))
-                attn_loss = self._bce_dice_loss(Pi * Mi, Ai * Mi)
-            else:
-                attn_loss = self._bce_dice_loss(Pi, Ai)
-
-            # 背景抑制：并集 → 背景
-            A_union = Ai.max(dim=1, keepdim=True).values
-            A_bg = (1.0 - A_union).clamp(0, 1)
-            P_max = Pi.max(dim=1, keepdim=True).values
-            bg_loss = F.binary_cross_entropy_with_logits(
-                P_max, torch.zeros_like(P_max), weight=A_bg
-            )
-
-            # 时间平滑（在 prob 上）
-            P_sig = torch.sigmoid(Pi)
-            tmp_loss = self._temporal_tv_l1(P_sig)
-
-            lam = (
-                self.lambda_list[i]
-                if i < len(self.lambda_list)
-                else self.lambda_list[-1]
-            )
-            loss_attn_total = loss_attn_total + lam * attn_loss
-            loss_bg_total = loss_bg_total + self.w_bg * bg_loss
-            loss_tmp_total = loss_tmp_total + self.w_temp * tmp_loss
-
-            prev_up = Pi  # 若后续需要层间一致性，可在此加入 KL 蒸馏
-
-        return {"attn": loss_attn_total, "bg": loss_bg_total, "tmp": loss_tmp_total}
 
     # ------------------- training / validation -------------------
     def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int):
@@ -148,47 +76,15 @@ class PoseAttnTrainer(LightningModule):
         attn_map: torch.Tensor = batch["attn_map"]
         labels: torch.Tensor = batch["label"].long()
         B = video.size(0)
-        visible_mask: torch.Tensor | None = batch.get("attn_mask", None)
 
-        out = self.model(video, attn_map, return_aux=True)
-        logits, aux = out if isinstance(out, tuple) else (out, {"side_preds": []})
+        logits = self.model(video, attn_map)
 
         probs = torch.softmax(logits, dim=1)
         loss_cls = F.cross_entropy(logits, labels)
 
-        attn_losses = self._compute_attn_losses(
-            aux.get("side_preds", []), doctor_hm=attn_map, visible_mask=visible_mask
-        )
-        loss_total = (
-            loss_cls + attn_losses["attn"] + attn_losses["bg"] + attn_losses["tmp"]
-        )
-
         # logging
-        self.log("train/loss", loss_total, on_step=True, on_epoch=True, batch_size=B)
-        self.log("train/loss_cls", loss_cls, on_step=True, on_epoch=True, batch_size=B)
-        if len(aux.get("side_preds", [])) > 0:
-            self.log(
-                "train/loss_attn",
-                attn_losses["attn"],
-                on_step=True,
-                on_epoch=True,
-                batch_size=B,
-            )
-            self.log(
-                "train/loss_bg",
-                attn_losses["bg"],
-                on_step=True,
-                on_epoch=True,
-                batch_size=B,
-            )
-            self.log(
-                "train/loss_tmp",
-                attn_losses["tmp"],
-                on_step=True,
-                on_epoch=True,
-                batch_size=B,
-            )
-
+        self.log("train/loss", loss_cls, on_step=True, on_epoch=True, batch_size=B)
+        
         self.log_dict(
             {
                 "train/video_acc": self._accuracy(probs, labels),
@@ -202,11 +98,9 @@ class PoseAttnTrainer(LightningModule):
         )
 
         logger.info(
-            f"train loss: {loss_total.item():.4f} "
-            f"(cls {loss_cls.item():.4f} | attn {attn_losses['attn'].item():.4f} | "
-            f"bg {attn_losses['bg'].item():.4f} | tmp {attn_losses['tmp'].item():.4f})"
+            f"train loss: {loss_cls.item():.4f} "
         )
-        return loss_total
+        return loss_cls
 
     @torch.no_grad()
     def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int):
@@ -214,46 +108,14 @@ class PoseAttnTrainer(LightningModule):
         attn_map: torch.Tensor = batch["attn_map"]
         labels: torch.Tensor = batch["label"].long()
         B = video.size(0)
-        visible_mask: torch.Tensor | None = batch.get("attn_mask", None)
 
-        out = self.model(video, attn_map, return_aux=True)
-        logits, aux = out if isinstance(out, tuple) else (out, {"side_preds": []})
+        logits = self.model(video, attn_map)
 
         probs = torch.softmax(logits, dim=1)
         loss_cls = F.cross_entropy(logits, labels)
-
-        attn_losses = self._compute_attn_losses(
-            aux.get("side_preds", []), doctor_hm=attn_map, visible_mask=visible_mask
-        )
-        loss_total = (
-            loss_cls + attn_losses["attn"] + attn_losses["bg"] + attn_losses["tmp"]
-        )
-
+        
         # 建议验证只 on_epoch 记录，减少噪声
-        self.log("val/loss", loss_total, on_step=False, on_epoch=True, batch_size=B)
-        self.log("val/loss_cls", loss_cls, on_step=False, on_epoch=True, batch_size=B)
-        if len(aux.get("side_preds", [])) > 0:
-            self.log(
-                "val/loss_attn",
-                attn_losses["attn"],
-                on_step=False,
-                on_epoch=True,
-                batch_size=B,
-            )
-            self.log(
-                "val/loss_bg",
-                attn_losses["bg"],
-                on_step=False,
-                on_epoch=True,
-                batch_size=B,
-            )
-            self.log(
-                "val/loss_tmp",
-                attn_losses["tmp"],
-                on_step=False,
-                on_epoch=True,
-                batch_size=B,
-            )
+        self.log("val/loss", loss_cls, on_step=False, on_epoch=True, batch_size=B)
 
         self.log_dict(
             {
@@ -268,17 +130,21 @@ class PoseAttnTrainer(LightningModule):
         )
 
         logger.info(
-            f"val loss: {loss_total.item():.4f} "
-            f"(cls {loss_cls.item():.4f} | attn {attn_losses['attn'].item():.4f} | "
-            f"bg {attn_losses['bg'].item():.4f} | tmp {attn_losses['tmp'].item():.4f})"
+            f"val loss: {loss_cls.item():.4f} "
         )
-        return {"val_loss": loss_total}
+        return {"val_loss": loss_cls}
 
     # ------------------- testing -------------------
     def on_test_start(self) -> None:
+        self.test_outputs: List[torch.Tensor] = []
         self.test_pred_list: list[torch.Tensor] = []
         self.test_label_list: list[torch.Tensor] = []
         logger.info("test start")
+
+    def on_test_end(self) -> None:
+        """hook function for test end"""
+        logger.info("test end")
+
 
     def test_step(self, batch: dict[str, torch.Tensor], batch_idx: int):
         video: torch.Tensor = batch["video"]
@@ -286,8 +152,7 @@ class PoseAttnTrainer(LightningModule):
         labels: torch.Tensor = batch["label"].long()
         B = video.size(0)
 
-        out = self.model(video, attn_map, return_aux=False)
-        logits = out if isinstance(out, torch.Tensor) else out[0]
+        logits = self.model(video, attn_map)
         probs = torch.softmax(logits, dim=1)
 
         loss = F.cross_entropy(logits, labels)
@@ -307,7 +172,49 @@ class PoseAttnTrainer(LightningModule):
 
         self.test_pred_list.append(probs.detach().cpu())
         self.test_label_list.append(labels.detach().cpu())
-        return {"probs": probs, "logits": logits}
+
+        # dump CAMs
+        fold = (
+            getattr(self.logger, "root_dir", "fold").split("/")[-1]
+        )
+
+        if batch_idx < 5:  # 仅保存前几个 batch，防止数据量过大
+            dump_all_feature_maps(
+                model=self.model,
+                video=video,
+                video_info=batch.get("info", None),
+                attn_map=attn_map,
+                save_root=f"{self.save_root}/test_all_feature_maps/{fold}/batch_{batch_idx}",
+                include_types=(torch.nn.Conv3d),
+                include_name_contains=("conv_c",), # 因为se 出来的是b, c, 1,1,1， 所以不保存se的中间特征
+                resize_to=(256, 256),  # 指定输出大小
+                resize_mode="bilinear",
+            )
+
+        return probs, logits
+    
+    def on_test_batch_end(
+        self,
+        outputs: list[torch.Tensor],
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int = 0,
+    ) -> None:
+        """hook function for test batch end
+
+        Args:
+            outputs (torch.Tensor | logging.Mapping[str, Any] | None): current output from batch.
+            batch (Any): the data of current batch.
+            batch_idx (int): the index of current batch.
+            dataloader_idx (int, optional): the index of all dataloader. Defaults to 0.
+        """
+
+        pred_softmax, pred = outputs
+        label = batch["label"].detach().float()
+
+        self.test_outputs.append(outputs)
+        self.test_pred_list.append(pred_softmax)
+        self.test_label_list.append(label)
 
     def on_test_epoch_end(self) -> None:
         save_helper(
@@ -318,7 +225,7 @@ class PoseAttnTrainer(LightningModule):
                 if self.logger
                 else "fold"
             ),
-            save_path=getattr(self.logger, "save_dir", "."),
+            save_path=self.save_root,
             num_class=self.num_classes,
         )
         logger.info("test epoch end")

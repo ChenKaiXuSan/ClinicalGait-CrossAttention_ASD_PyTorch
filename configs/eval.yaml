@@ -11,7 +11,7 @@ hydra:
       model.fusion_layers: 0, 1, 2, 3, 4, 5
       model.backbone: 3dcnn
 
-optimizer:
+loss:
   lr: 0.0001
   beta1: 0.5
   beta2: 0.999
@@ -40,7 +40,7 @@ model:
   use_side_heads: True # whether to use side heads for intermediate supervision
 
   fuse_method: add # add, mul, concat, none, late, avg, cross_atn, se_atn, pose_atn
-  fusion_layers: 5 # the fuse layer number of the model, used for cross attention, se attention, etc.
+  fusion_layers: 4 # the fuse layer number of the model, used for cross attention, se attention, etc. max is 4
   ablation_study: single # choices=[single, multi], help='the ablation study of the model, single means only one layer is used for fusion, multi means multiple layers are used for fusion'
   ckpt_path: checkpoints/SLOW_8x8_R50.pyth # the checkpoint path of the model, used for pre-trained model
 
@@ -65,5 +65,5 @@ train:
 
 eval:
   gpu: 0 # choices=[0, 1], help='the gpu number whicht to eval'
-  input_path: /workspace/code/logs_bak/3dcnn_attn_map_True_se_atn_0/2025-06-26/15-06-12
+  input_path: ""
   log_path: ${eval.input_path}/eval_results/

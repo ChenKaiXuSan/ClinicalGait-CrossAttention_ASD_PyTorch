@@ -39,11 +39,10 @@
         "model.backbone=3dcnn",
         "model.model_class_num=3",
         "train.gpu=1",
-        // "train.clip_duration=1",
-        // "train.uniform_temporal_subsample_num=8",
         "data.num_workers=0",
         "model.fuse_method=se_atn",
-        "model.fusion_layers=5",
+        "model.ablation_study=multi",
+        "model.fusion_layers=4",
       ]
     },
     {

@@ -1,11 +1,33 @@
+#!/usr/bin/env python3
+# -*- coding:utf-8 -*-
+"""
+File: /workspace/code/project/utils/save_CAM.py
+Project: /workspace/code/project/utils
+Created Date: Monday November 10th 2025
+Author: Kaixu Chen
+-----
+Comment:
+This is a utility script to save the Class Activation Maps (CAM) of the model.
+The saved CAMs can be used for model evaluation and visualization.
+
+Have a good code time :)
+-----
+Last Modified: Monday November 10th 2025 8:39:34 pm
+Modified By: the developer formerly known as Kaixu Chen at <chenkaixusan@gmail.com>
+-----
+Copyright (c) 2025 The University of Tsukuba
+-----
+HISTORY:
+Date      	By	Comments
+----------	---	---------------------------------------------------------
+"""
+
 import os
-import math
 import logging
 from typing import Dict, List, Optional, Tuple, Iterable
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 from PIL import Image
 
@@ -13,6 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------- 基础工具 ----------
+
 
 def _resize_u8(
     img: np.ndarray,
@@ -93,7 +116,7 @@ def _save_grid(
         r, c = divmod(idx, ncols)
         y0 = r * (h + pad)
         x0 = c * (w + pad)
-        canvas[y0:y0 + h, x0:x0 + w] = img
+        canvas[y0 : y0 + h, x0 : x0 + w] = img
 
     Image.fromarray(canvas, mode=mode).save(save_path)
 
@@ -106,6 +129,7 @@ def _colormap_jet(gray_u8: np.ndarray) -> np.ndarray:
     c[..., 1] = np.clip(1.5 - np.abs(4 * g - 2), 0, 1)  # G
     c[..., 0] = np.clip(1.5 - np.abs(4 * g - 1), 0, 1)  # B
     return (c * 255.0 + 0.5).astype(np.uint8)
+
 
 # ---------- 主功能：保存每层特征图 ----------
 class _FeatureHook:
@@ -140,7 +164,7 @@ def _list_match(names: Iterable[str], patterns: Iterable[str]) -> bool:
     for n in names:
         s = str(n)
         for p in ps:
-            if p in s:
+            if p == s:
                 return True
     return False
 
@@ -175,20 +199,25 @@ def dump_all_feature_maps(
     """
     os.makedirs(save_root, exist_ok=True)
 
-    assert len(video_info) == video.size(0), \
-        "video_info length must match batch size"
+    # prepare video info
+    video_info_list = []
+    for one_video in video_info:
+        for i in range(one_video["video"].shape[0]):
+            video_info_list.append(one_video["video_name"])
+
+    assert len(video_info_list) == video.size(0), "video_info length must match batch size"
 
     # 1) 注册 hooks
     feats: Dict[str, torch.Tensor] = {}
     hooks: List[_FeatureHook] = []
-
+    # FIXME: 这里的过滤条件还需要修改
     for name, mod in model.named_modules():
         if not isinstance(mod, include_types):
             continue
         parts = name.split(".")
-        if not _list_match([name] + parts, include_name_contains):
+        if not _list_match(parts, include_name_contains):
             continue
-        if _list_match([name] + parts, exclude_name_contains):
+        if _list_match(parts, exclude_name_contains):
             continue
         hooks.append(_FeatureHook(name, mod, feats))
 
@@ -211,7 +240,7 @@ def dump_all_feature_maps(
             h.remove()
 
     # 3) 保存每层
-    B = video.size(0)
+    B, C, T, H, W = video.shape
 
     for lname, tensor in feats.items():
         if not isinstance(tensor, torch.Tensor):
@@ -223,45 +252,38 @@ def dump_all_feature_maps(
         layer_dir = os.path.join(save_root, lname.replace(".", "_"))
         os.makedirs(layer_dir, exist_ok=True)
 
-        # 统一到 5D: (B,C,T,H,W)
-        if tensor.ndim == 4:
-            Bx, C, H, W = tensor.shape
-            T = 1
-            P = tensor.reshape(Bx, C, 1, H, W)
-        else:
-            Bx, C, T, H, W = tensor.shape
-            P = tensor
-
-        # 数值范围到 [0,1]（按通道独立归一化再绘制）
-        # 这里不直接归一化 P，逐图像绘制时做归一化可避免跨通道相互影响
-
-        # 时间聚合或单帧
-        maps_4d = P
-
         # 按时间维度分别保存
         for b in range(B):
             # 收集前 K 个通道的图像（灰度或伪彩）
             imgs_gray: List[np.ndarray] = []
             imgs_color: List[np.ndarray] = []
 
-            subdir = os.path.join(layer_dir, f"batch{b}")
+            subdir = os.path.join(layer_dir, f"sample{b}")
             os.makedirs(subdir, exist_ok=True)
 
             for t in range(T):
-
                 #  通道平均响应图
-                g = _to_uint8_gray(maps_4d.mean(dim=1)[b, t])
+                g = _to_uint8_gray(tensor.mean(dim=1)[b, t])
                 if resize_to is not None:
                     g = _resize_u8(g, size=resize_to, mode=resize_mode)
 
                 imgs_gray.append(g)
-
                 imgs_color.append(_colormap_jet(g))
 
-            # 也逐通道保存彩色（可选，避免太多文件可以只保存前几张）
+            # 也逐时间保存彩色
             for i, col in enumerate(imgs_color):
-                p = os.path.join(subdir, f"{video_info[b]}_time{i:02d}.png")
+                p = os.path.join(subdir, f"{video_info_list[b]}_time{i:02d}.png")
                 Image.fromarray(col).save(p)
-            
-            _save_grid(imgs_gray, os.path.join(subdir, f"{video_info[b]}_grid_gray.png"), ncols=T, pad=2)
-            _save_grid(imgs_color, os.path.join(subdir, f"{video_info[b]}_grid_color.png"), ncols=T, pad=2)
+
+            _save_grid(
+                imgs_gray,
+                os.path.join(subdir, f"{video_info_list[b]}_grid_gray.png"),
+                ncols=T,
+                pad=2,
+            )
+            _save_grid(
+                imgs_color,
+                os.path.join(subdir, f"{video_info_list[b]}_grid_color.png"),
+                ncols=T,
+                pad=2,
+            )
