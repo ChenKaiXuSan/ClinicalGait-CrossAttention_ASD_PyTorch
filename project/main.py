@@ -147,6 +147,7 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         ],
         # limit_train_batches=2,
         # limit_val_batches=2,
+        # limit_test_batches=2,
     )
 
     trainer.fit(classification_module, data_module)

@@ -66,6 +66,12 @@ def save_helper(
         num_class (int): number of class.
     """
 
+    # check device 
+    if all_pred[0].is_cuda:
+        all_pred = [pred.cpu() for pred in all_pred]
+    if all_label[0].is_cuda:
+        all_label = [label.cpu() for label in all_label]
+        
     all_pred: torch.Tensor = torch.cat(all_pred, dim=0)
     all_label: torch.Tensor = torch.cat(all_label, dim=0)
 

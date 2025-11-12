@@ -154,7 +154,7 @@ class Res3DCNNTrainer(LightningModule):
 
     def on_test_start(self) -> None:
         """hook function for test start"""
-        self.test_outputs: list[torch.Tensor] = []
+
         self.test_pred_list: list[torch.Tensor] = []
         self.test_label_list: list[torch.Tensor] = []
 
@@ -194,6 +194,9 @@ class Res3DCNNTrainer(LightningModule):
         }
         self.log_dict(metric_dict, on_epoch=True, on_step=True, batch_size=b)
 
+        self.test_pred_list.append(video_preds_softmax.detach().cpu())
+        self.test_label_list.append(label.detach().cpu())
+
         fold = (
             getattr(self.logger, "root_dir", "fold").split("/")[-1]
             if self.logger
@@ -213,29 +216,6 @@ class Res3DCNNTrainer(LightningModule):
             )
 
         return video_preds_softmax, video_preds
-
-    def on_test_batch_end(
-        self,
-        outputs: list[torch.Tensor],
-        batch: Any,
-        batch_idx: int,
-        dataloader_idx: int = 0,
-    ) -> None:
-        """hook function for test batch end
-
-        Args:
-            outputs (torch.Tensor | logging.Mapping[str, Any] | None): current output from batch.
-            batch (Any): the data of current batch.
-            batch_idx (int): the index of current batch.
-            dataloader_idx (int, optional): the index of all dataloader. Defaults to 0.
-        """
-
-        pred_softmax, pred = outputs
-        label = batch["label"].detach().float()
-
-        self.test_outputs.append(outputs)
-        self.test_pred_list.append(pred_softmax)
-        self.test_label_list.append(label)
 
     def on_test_epoch_end(self) -> None:
         """hook function for test epoch end"""
