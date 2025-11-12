@@ -2,7 +2,7 @@
 #PBS -A SKIING                        # ✅ 项目名（必须修改）
 #PBS -q gen_S                        # ✅ 队列名（gpu / debug / gen_S）
 #PBS -l elapstim_req=24:00:00         # ⏱ 运行时间限制（最多 24 小时）
-#PBS -N 3dcnn_train                     # 🏷 作业名称
+#PBS -N run_3dcnn_train                     # 🏷 作业名称
 #PBS -o logs/pegasus/train_3dcnn_out.log
 #PBS -e logs/pegasus/train_3dcnn_err.log
 

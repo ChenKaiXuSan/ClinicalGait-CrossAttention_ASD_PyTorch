@@ -145,8 +145,8 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
             lr_monitor,
             DeviceStatsMonitor(),  # monitor the device stats.
         ],
-        limit_train_batches=2,
-        limit_val_batches=2,
+        # limit_train_batches=2,
+        # limit_val_batches=2,
     )
 
     trainer.fit(classification_module, data_module)
