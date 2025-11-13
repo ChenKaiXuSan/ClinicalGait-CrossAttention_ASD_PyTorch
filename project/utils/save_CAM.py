@@ -125,9 +125,10 @@ def _colormap_jet(gray_u8: np.ndarray) -> np.ndarray:
     """简易 JET（无额外依赖） -> (H,W,3) uint8"""
     g = gray_u8.astype(np.float32) / 255.0
     c = np.zeros((g.shape[0], g.shape[1], 3), dtype=np.float32)
-    c[..., 2] = np.clip(1.5 - np.abs(4 * g - 3), 0, 1)  # R
+    c[..., 0] = np.clip(1.5 - np.abs(4 * g - 3), 0, 1)  # R
     c[..., 1] = np.clip(1.5 - np.abs(4 * g - 2), 0, 1)  # G
-    c[..., 0] = np.clip(1.5 - np.abs(4 * g - 1), 0, 1)  # B
+    c[..., 2] = np.clip(1.5 - np.abs(4 * g - 1), 0, 1)  # B
+
     return (c * 255.0 + 0.5).astype(np.uint8)
 
 
