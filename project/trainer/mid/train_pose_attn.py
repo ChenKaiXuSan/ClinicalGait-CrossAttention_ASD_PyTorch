@@ -357,7 +357,7 @@ class PoseAttnTrainer(LightningModule):
                 video=video,
                 video_info=batch.get("info", None),
                 attn_map=attn_map,
-                save_root=self.save_root + f"/test_feature_maps/{fold}/batch_{batch_idx}",
+                save_root=self.save_root + f"/test_all_feature_maps/{fold}/batch_{batch_idx}",
                 include_types=(torch.nn.Conv3d, torch.nn.Linear),
                 include_name_contains=("conv_c", "rgb_conv", "attn_conv", "gate_conv2"),  # 只保存部分层
                 exclude_name_contains=("proj", "head"),  # 排除分类 head
