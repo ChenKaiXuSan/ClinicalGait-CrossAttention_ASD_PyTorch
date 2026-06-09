@@ -17,7 +17,7 @@ loss:
   beta2: 0.999
 
 data:
-  root_path: /workspace/data
+  root_path: /mnt/data/xchen/asd_data
 
   info_path: ${data.root_path}/pose_attn_map_dataset # this is the root path of dataset.
   video_path: ${data.root_path}/segmentation_dataset_512

@@ -1,19 +1,19 @@
 # hydra config
 hydra:
   run:
-    dir: /workspace/skeleton/logs/prepare_skeleton_dataset/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: /mnt/data/xchen/asd_data/logs/prepare_skeleton_dataset/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
 # Path
 # step1: from raw video to extract video.
 # use YOLOv8 detection with tracking.
 extract_dataset:
   data_path: "" # this is raw data path.
-  save_path: "/workspace/data/segmentation_dataset_512" # this is extracted video path.
+  save_path: "/mnt/data/xchen/asd_data/segmentation_dataset_512" # this is extracted video path.
 
 # step2: from extracted video to define the gait cycle.
 gait_dataset:
-  data_path: "/workspace/data/segmentation_dataset_512/" # meta four view dataset path, with human annotation.
-  save_path: "/workspace/data/seg_skeleton_pkl" # convert the four view dataset into a format of the annotation file.
+  data_path: "/mnt/data/xchen/asd_data/segmentation_dataset_512/" # meta four view dataset path, with human annotation.
+  save_path: "/mnt/data/xchen/asd_data/seg_skeleton_pkl" # convert the four view dataset into a format of the annotation file.
 
 # mmdetection 
 mmaction:

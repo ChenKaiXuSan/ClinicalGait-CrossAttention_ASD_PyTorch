@@ -10,7 +10,7 @@ ClinicalAttention AS — PyTorch 实现：使用视频步态分析进行成人�
 
 ```
 project/                 # 核心代码
-├── main.py              # Hydra entry point：K-fold 训练循环入口
+├── train.py             # Hydra entry point：K-fold 训练循环入口
 ├── cross_validation.py  # StratifiedGroupKFold 交叉验证 + over/under sampler
 ├── dataloader/          # WalkDataModule (LightningDataModule)
 │   ├── data_loader.py   # 数据模块，collate_fn 做 label mapping
@@ -40,7 +40,7 @@ tests/                   # pytest 测试
 ## 关键架构理解
 
 ### 1. 入口与配置流
-- `python -m project.main` 通过 Hydra 加载 `configs/config.yaml`
+- `python -m project.train` 通过 Hydra 加载 `configs/config.yaml`
 - `@hydra.main` 装饰器调用 `init_params()` → `DefineCrossValidation()` 生成 K-fold 索引 → 循环每 fold 调用 `train()`
 - `train()` 根据 `hparams.model.fuse_method` 路由到不同 trainer
 
@@ -75,16 +75,16 @@ pip install -r tests/requirements.txt   # 测试依赖
 ### 运行训练（Hydra 参数覆盖）
 ```bash
 # Pose Attention 训练 (single layer, 5-fold)
-python -m project.main data.root_path=/path/to/data model.fuse_method=pose_atn train.fold=5 model.ablation_study=single
+python -m project.train data.root_path=/path/to/data model.fuse_method=pose_atn train.fold=5 model.ablation_study=single
 
 # SE Attention 训练 (multi layers)
-python -m project.main data.root_path=/path/to/data model.fuse_method=se_atn train.fold=5 model.ablation_study=multi model.fusion_layers=0,1,2,3,4
+python -m project.train data.root_path=/path/to/data model.fuse_method=se_atn train.fold=5 model.ablation_study=multi model.fusion_layers=0,1,2,3,4
 
 # Cross-Attention 训练
-python -m project.main data.root_path=/path/to/data model.fuse_method=cross_atn train.fold=5
+python -m project.train data.root_path=/path/to/data model.fuse_method=cross_atn train.fold=5
 
 # Base Res3DCNN
-python -m project.main data.root_path=/path/to/data model.fuse_method=none
+python -m project.train data.root_path=/path/to/data model.fuse_method=none
 ```
 
 ### HPC 集群提交 (PBS)

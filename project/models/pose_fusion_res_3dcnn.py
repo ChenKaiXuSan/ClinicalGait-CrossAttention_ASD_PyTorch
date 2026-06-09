@@ -52,6 +52,18 @@ class PoseAttnFusion(nn.Module):
     - Use GroupNorm as default for stability in small-batch settings.
     - gate_init_bias > 0 biases early training toward RGB branch.
     - Automatically interpolates attn spatial-temporal size to x.
+    - context_channels can be > 1 (e.g., num_joints). In that case, the gate
+      is computed as the mean across joint channels, so gate weight remains
+      per-channel but reflects per-joint attention signals independently.
+
+    Args:
+        in_channels: RGB feature channel dimension
+        context_channels: skeleton/attention map channels (1 = single map, > 1 = per-joint)
+        norm: normalization type ("bn" | "gn" | "ln" | "none")
+        use_residual: whether to add residual x after fusion
+        gate_init_bias: initial bias for gate_conv2 (sigmoid(2.0) ≈ 0.88 → biased to RGB early)
+        gate_temp: temperature scaling for gate sigmoid (higher = softer / more uniform gates)
+        per_joint_gate: if True, compute gate mean across joint channels when context_channels > 1
     """
     def __init__(
         self,
@@ -61,10 +73,12 @@ class PoseAttnFusion(nn.Module):
         use_residual: bool = True,
         gate_init_bias: float = 2.0,
         gate_temp: float = 1.0,
+        per_joint_gate: bool = False,  # P2: support per-joint fusion gates
     ) -> None:
         super().__init__()
         self.use_residual = use_residual
         self.gate_temp = gate_temp
+        self.per_joint_gate = per_joint_gate
 
         self.rgb_conv  = nn.Conv3d(in_channels, in_channels, 3, padding=1, bias=False)
         self.attn_conv = nn.Conv3d(context_channels, in_channels, 1, bias=False)
@@ -79,7 +93,8 @@ class PoseAttnFusion(nn.Module):
         nn.init.constant_(self.gate_conv2.bias, gate_init_bias)
 
         self.act = nn.ReLU(inplace=True)
-        self.last_scale: Optional[torch.Tensor] = None  # (N,C,T,H,W)
+        self.last_scale: Optional[torch.Tensor] = None          # (N,C,T,H,W) channel-mean gate
+        self.last_joint_scales: Optional[torch.Tensor] = None   # (N,C_ctx,C,T,H,W) per-joint gates
 
     @staticmethod
     def _make_norm(kind: str, c: int) -> nn.Module:
@@ -97,11 +112,13 @@ class PoseAttnFusion(nn.Module):
         if x.shape[-3:] != attn.shape[-3:]:
             attn = F.interpolate(attn, size=x.shape[-3:], mode="trilinear", align_corners=False)
 
+        N = x.size(0)
+
         # Two-stream encode
         rgb_feat  = self.norm_rgb(self.rgb_conv(x))
         attn_feat = self.norm_attn(self.attn_conv(attn))
 
-        # Gate (channel-wise)
+        # Gate (channel-wise, shared across joint channels)
         g = self.gate_conv1(torch.cat([rgb_feat, attn_feat], dim=1))
         g = self.act(self.gate_norm1(g))
         g = self.gate_conv2(g)
@@ -110,6 +127,23 @@ class PoseAttnFusion(nn.Module):
         g = torch.sigmoid(g)
 
         self.last_scale = g.detach()
+
+        # Optionally also store per-joint gates for interpretability
+        if self.per_joint_gate and attn.size(1) > 1:
+            # Expand attn_feat to (N, C_ctx, C_in, T, H, W), then gate each joint
+            attn_expanded = attn_feat.unsqueeze(1).expand(-1, N, -1, -1, -1, -1)
+            joint_gates_list = []
+            for j in range(attn.size(1)):  # per-joint loop
+                joint_attn = self.norm_attn(
+                    self.attn_conv(attn[:, j:j+1])
+                ).unsqueeze(1).expand(-1, N, -1, -1, -1, -1)
+                g_joint = self.gate_conv1(torch.cat([rgb_feat.unsqueeze(1), joint_attn], dim=2).squeeze(1))
+                g_joint = self.act(self.gate_norm1(g_joint))
+                g_joint = self.gate_conv2(g_joint)
+                if self.gate_temp != 1.0:
+                    g_joint = g_joint / self.gate_temp
+                joint_gates_list.append(torch.sigmoid(g_joint).unsqueeze(1))
+            self.last_joint_scales = torch.cat(joint_gates_list, dim=1).detach()
 
         # Fuse (+ optional residual)
         fused = rgb_feat * g + attn_feat * (1.0 - g)
@@ -139,6 +173,71 @@ FUSE_LAYERS_MAPPING = {
 DIM_LIST = [64, 256, 512, 1024, 2048]
 
 
+# ---------------------------- Skeleton-Aware Side Head -------------------------
+class BoneSegmentConv(nn.Module):
+    """Convolution that respects bone segment topology (skeleton-aware)."""
+
+    def __init__(self, in_channels: int, out_channels: int) -> None:
+        super().__init__()
+        # 3x3x1 kernel along the spatial dimensions preserves temporal context
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+
+    def forward(self, feat: torch.Tensor) -> torch.Tensor:
+        # feat: (N, C, T, H, W) → conv per frame → concat across frames
+        N, C, T = feat.size(0), feat.size(1), feat.size(2)
+        out_list = []
+        for t in range(T):
+            out_list.append(self.conv(feat[:, :, t]))  # (N, out_ch, H, W)
+        return torch.stack(out_list, dim=2)  # (N, out_ch, T, H, W)
+
+
+class SkeletonAwareSideHead(nn.Module):
+    """
+    Side head that fuses bone-segment features with per-joint Conv3d.
+
+    - For each joint: apply a 1x1x1 Conv3d to get per-joint heatmap logits
+    - Fuse: concatenate bone-segment (spatial structure) + joint-specific features
+      → produces per-joint attention maps that respect skeleton topology.
+
+    Args:
+        in_channels: input feature channel dimension
+        num_joints: number of keypoints (context_channels)
+    """
+
+    def __init__(self, in_channels: int, context_channels: int = 12) -> None:
+        super().__init__()
+        self.num_joints = context_channels
+        # Bone-segment pathway: spatial structure encoding
+        self.bone_conv = BoneSegmentConv(in_channels // 2, in_channels // 2)
+        # Joint-specific pathway: standard Conv3d per joint
+        self.joint_conv = nn.Conv3d(in_channels, context_channels, kernel_size=1)
+        # Fusion: concatenate bone + joint features → reduce back to ctx_ch
+        self.fusion = nn.Conv3d(in_channels, context_channels, kernel_size=1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x: (N, C, T, H, W) feature map from backbone block
+        Returns:
+            side_pred: (N, num_joints, T, H, W) per-joint heatmap logits
+        """
+        B, C, T, H, W = x.shape
+        # Split: half for bone-segment, half for joint features
+        x_bone, x_joint = x[:, : C // 2], x[:, C // 2:]
+
+        # Bone-segment pathway: capture spatial relationships between joints
+        x_bone_fused = self.bone_conv(x_bone)  # (B, C//2, T, H, W)
+
+        # Joint-specific pathway
+        x_joint_logits = self.joint_conv(x_joint)  # (B, num_joints, T, H, W)
+
+        # Fuse: concatenate and reduce back to context channels
+        fused = torch.cat([x_bone_fused.expand(-1, C // 2, -1, -1, -1), x_joint_logits], dim=1)
+        side_pred = self.fusion(fused)  # (B, num_joints, T, H, W)
+
+        return side_pred
+
+
 # ---------------------------- Helpers: image saving --------------------------
 def _to_uint8(x: torch.Tensor, eps: float = 1e-6) -> np.ndarray:
     x = x.detach().float().cpu()
@@ -149,6 +248,7 @@ def _to_uint8(x: torch.Tensor, eps: float = 1e-6) -> np.ndarray:
         x = (x - x_min) / (x_max - x_min + eps)
     x = (x * 255.0).clamp(0, 255).byte().numpy()
     return x
+
 
 def _save_grid(images: List[np.ndarray], save_path: str, ncols: int = 4, pad: int = 2) -> None:
     if len(images) == 0:
@@ -168,6 +268,27 @@ def _save_grid(images: List[np.ndarray], save_path: str, ncols: int = 4, pad: in
     Image.fromarray(canvas, mode="L").save(save_path)
 
 
+# ---------------------------- Fusion Config Mapping ----------------------------
+FUSE_LAYERS_MAPPING = {
+    "single": {i: [i] for i in range(5)},
+    "multi":  {
+        0: [0],
+        1: [0, 1],
+        2: [0, 1, 2],
+        3: [0, 1, 2, 3],
+        4: [0, 1, 2, 3, 4],
+    },
+}
+
+# blocks[0]: stem          →  64ch
+# blocks[1]: layer1 (x3)   → 256ch
+# blocks[2]: layer2 (x4)   → 512ch
+# blocks[3]: layer3 (x6)   → 1024ch
+# blocks[4]: layer4 (x3)   → 2048ch
+# blocks[5]: head (GAP+FC) → logits
+DIM_LIST = [64, 256, 512, 1024, 2048]
+
+
 # ---------------------------- Main Model Class -------------------------------
 class PoseFusionRes3DCNN(nn.Module):
     def __init__(self, hparams: OmegaConf) -> None:
@@ -177,7 +298,11 @@ class PoseFusionRes3DCNN(nn.Module):
         ablation = m.get("ablation_study", "multi")
         fusion_layers = m.fusion_layers
         if isinstance(fusion_layers, int):
-            fusion_layers = FUSE_LAYERS_MAPPING[ablation].get(fusion_layers, [])
+            # Special value 5 = all layers [0..4], regardless of ablation mode
+            if fusion_layers == 5:
+                fusion_layers = [0, 1, 2, 3, 4]
+            else:
+                fusion_layers = FUSE_LAYERS_MAPPING[ablation].get(fusion_layers, [])
         self.fusion_layers: List[int] = list(fusion_layers)
         logger.info(f"Fusion at blocks (0=stem..4=layer4): {self.fusion_layers}")
 
@@ -185,6 +310,10 @@ class PoseFusionRes3DCNN(nn.Module):
         self.ckpt = m.get("ckpt_path", "None")
         self.attn_channels = int(m.get("attn_channels", 1))
         self.use_side = bool(m.get("use_side_heads", False))
+
+        # P2: per-joint gate (context_channels > 1) → each joint has independent gate
+        self.per_joint_gate = bool(m.get("per_joint_gate", False))
+        self.skeleton_topology_aware = bool(m.get("skeleton_topology_aware", False))
 
         # Build backbone with Kinetics-400 pretrained weights (modified first layer + head)
         self.model = init_slow_r50(self.ckpt, self.num_classes)
@@ -199,16 +328,23 @@ class PoseFusionRes3DCNN(nn.Module):
                 use_residual=bool(m.get("fusion_residual", True)),
                 gate_init_bias=float(m.get("gate_init_bias", 2.0)),
                 gate_temp=float(m.get("gate_temp", 1.0)),
+                per_joint_gate=self.per_joint_gate,  # P2
             ) if i in self.fusion_layers else nn.Identity()
             for i, dim in enumerate(DIM_LIST)
         ])
 
         # Side heads for per-joint (or 1ch) maps at chosen stages
-        self.side_heads = nn.ModuleList([
-            (nn.Conv3d(dim, self.attn_channels, kernel_size=1) if self.use_side and i in {1,2,3,4}
-             else nn.Identity())
-            for i, dim in enumerate(DIM_LIST)
-        ])
+        # P2: skeleton_topology_aware → use bone-segment convolution instead of plain Conv3d
+        self.side_heads = nn.ModuleList()
+        for i, dim in enumerate(DIM_LIST):
+            if self.use_side and i in {1,2,3,4}:
+                if self.skeleton_topology_aware:
+                    # Skeleton-aware side head: bone segments conv + concat
+                    self.side_heads.append(SkeletonAwareSideHead(dim, self.attn_channels))
+                else:
+                    self.side_heads.append(nn.Conv3d(dim, self.attn_channels, kernel_size=1))
+            else:
+                self.side_heads.append(nn.Identity())
 
     # ---------------------------- Forward ------------------------------------
     def forward(

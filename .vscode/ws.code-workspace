@@ -2,16 +2,12 @@
 	"folders": [
 		{
 			"name": "code",
-			"path": "/workspace/code"
+			"path": "/home/kaixu_chen/code/ClinicalAttention_ASD_PyTorch"
 		},
 		{
 			"name": "data",
-			"path": "/workspace/data"
+			"path": "/mnt/data/xchen/asd_data"
 		},
-		{
-			"name": "KnowledgeGuided-ASD_PyTorch",
-			"path": "../../KnowledgeGuided-ASD_PyTorch"
-		}
 	],
 	"settings": {
 		"python-envs.pythonProjects": [
@@ -19,12 +15,6 @@
 				"path": "",
 				"envManager": "ms-python.python:conda",
 				"packageManager": "ms-python.python:conda"
-			},
-			{
-				"path": "logs",
-				"envManager": "ms-python.python:venv",
-				"packageManager": "ms-python.python:pip",
-				"workspace": "code"
 			}
 		]
 	}

@@ -20,38 +20,33 @@ Date      	By	Comments
 ----------	---	---------------------------------------------------------
 """
 
-import os
 import logging
+import os
+
 import hydra
 from omegaconf import DictConfig
-
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from pytorch_lightning.callbacks import (
-    TQDMProgressBar,
-    RichModelSummary,
-    ModelCheckpoint,
-    EarlyStopping,
     LearningRateMonitor,
-    DeviceStatsMonitor,
+    ModelCheckpoint,
+    RichModelSummary,
 )
+from pytorch_lightning.loggers import CSVLogger, TensorBoardLogger
 
+from project.cross_validation import DefineCrossValidation
 from project.dataloader.data_loader import WalkDataModule
 
 #####################################
 # select different experiment trainer
 #####################################
-
 # baseline
 from project.trainer.baseline.train_3dcnn import Res3DCNNTrainer
+from project.trainer.early.train_early_fusion import EarlyFusion3DCNNTrainer
+from project.trainer.late.train_late_fusion import LateFusion3DCNNTrainer
 
 # attention based
 from project.trainer.mid.train_pose_attn import PoseAttnTrainer
 from project.trainer.mid.train_se_attn import SEAttnTrainer
-from project.trainer.early.train_early_fusion import EarlyFusion3DCNNTrainer
-from project.trainer.late.train_late_fusion import LateFusion3DCNNTrainer
-
-from project.cross_validation import DefineCrossValidation
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +99,6 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
     )
 
     # some callbacks
-    progress_bar = TQDMProgressBar(refresh_rate=10)
     rich_model_summary = RichModelSummary(max_depth=2)
 
     # define the checkpoint becavier.
@@ -120,44 +114,38 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         save_top_k=2,
     )
 
-    # define the early stop.
-    early_stopping = EarlyStopping(
-        monitor="val/video_acc",
-        patience=5,
-        mode="max",
-    )
-
     lr_monitor = LearningRateMonitor(logging_interval="step")
 
     trainer = Trainer(
-        devices=[
-            int(hparams.train.gpu),
-        ],
+        devices=int(hparams.train.gpu),
         accelerator="gpu",
+        strategy="auto",
         max_epochs=hparams.train.max_epochs,
-        logger=[tb_logger],
+        logger=[tb_logger, cvs_logger],
         check_val_every_n_epoch=1,
         callbacks=[
-            # progress_bar,
             rich_model_summary,
             model_check_point,
-            early_stopping,
             lr_monitor,
-            DeviceStatsMonitor(),  # monitor the device stats.
         ],
-        # limit_train_batches=2,
-        # limit_val_batches=2,
-        # limit_test_batches=2,
     )
 
     trainer.fit(classification_module, data_module)
 
     # save the metrics to file
-    trainer.test(
+    metrics = trainer.test(
         classification_module,
         data_module,
         ckpt_path="best",
     )
+
+    with open(
+        os.path.join(
+            hparams.train.log_path, "metrics", "fold_" + str(fold) + "_metrics.txt"
+        ),
+        "w",
+    ) as f:
+        f.write(str(metrics))
 
 
 @hydra.main(
