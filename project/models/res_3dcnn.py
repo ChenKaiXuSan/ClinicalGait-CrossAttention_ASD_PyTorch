@@ -24,8 +24,8 @@ import logging
 from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
-from project.models.base_model import BaseModel
 
+from project.models.weight_loader import init_slow_r50
 
 logger = logging.getLogger(__name__)
 
@@ -56,22 +56,20 @@ class LateFusionBlock(nn.Module):
         return out
 
 
-class Res3DCNN(BaseModel):
+class Res3DCNN(nn.Module):
     """
     make 3D CNN model from the PytorchVideo lib.
 
     """
 
     def __init__(self, hparams) -> None:
-        super().__init__(hparams=hparams)
+        super().__init__()
 
         self.model_class_num = hparams.model.model_class_num
         self.fuse_method = hparams.model.fuse_method
 
-        self.model = self.init_resnet(
-            self.model_class_num,
-            self.fuse_method,
-        )
+        ckpt_path = getattr(hparams.model, "ckpt_path", "")
+        self.model = init_slow_r50(ckpt_path, self.model_class_num)
 
         if self.fuse_method == "late":
             self.late_fusion = LateFusionBlock(

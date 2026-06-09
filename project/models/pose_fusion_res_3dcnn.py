@@ -36,7 +36,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import OmegaConf
 
-from project.models.base_model import BaseModel
+from project.models.weight_loader import init_slow_r50
 
 logger = logging.getLogger(__name__)
 
@@ -169,9 +169,9 @@ def _save_grid(images: List[np.ndarray], save_path: str, ncols: int = 4, pad: in
 
 
 # ---------------------------- Main Model Class -------------------------------
-class PoseFusionRes3DCNN(BaseModel):
+class PoseFusionRes3DCNN(nn.Module):
     def __init__(self, hparams: OmegaConf) -> None:
-        super().__init__(hparams)
+        super().__init__()
 
         m = hparams.model
         ablation = m.get("ablation_study", "multi")
@@ -186,9 +186,8 @@ class PoseFusionRes3DCNN(BaseModel):
         self.attn_channels = int(m.get("attn_channels", 1))
         self.use_side = bool(m.get("use_side_heads", False))
 
-        # Expect your init_resnet() to build a backbone with .blocks[0..5]
-        # (0..4 = stages, 5 = head). Otherwise adapt this indexing.
-        self.model = self.init_resnet(self.num_classes, self.ckpt)
+        # Build backbone with Kinetics-400 pretrained weights (modified first layer + head)
+        self.model = init_slow_r50(self.ckpt, self.num_classes)
         self.blocks = nn.ModuleList([self.model.blocks[i] for i in range(6)])
 
         # Fusion modules per stage

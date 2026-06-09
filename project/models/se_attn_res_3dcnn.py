@@ -25,7 +25,7 @@ import torch.nn.functional as F
 import os
 import matplotlib.pyplot as plt
 import logging
-from project.models.base_model import BaseModel
+from project.models.weight_loader import init_slow_r50
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +59,10 @@ class SEFusion(nn.Module):
         return x * scale + x
 
 
-class SEFusionRes3DCNN(BaseModel):
+class SEFusionRes3DCNN(nn.Module):
     def __init__(self, hparams) -> None:
-        super().__init__(hparams)
-        
+        super().__init__()
+
         fusion_layers = hparams.model.fusion_layers
         if isinstance(fusion_layers, int):
             fusion_layers = fuse_layers_mapping[fusion_layers]
@@ -72,7 +72,7 @@ class SEFusionRes3DCNN(BaseModel):
 
         self.ckpt = hparams.model.ckpt_path
         self.model_class_num = hparams.model.model_class_num
-        self.model = self.init_resnet(self.model_class_num, self.ckpt)
+        self.model = init_slow_r50(self.ckpt, self.model_class_num)
 
         self.attn_fusions = nn.ModuleList()
         dim_list = [64, 256, 512, 1024, 2048]
