@@ -25,7 +25,7 @@
 ###############################################################################
 
 #PBS -A SKIING                        # ✅ 项目名（必须修改）
-#PBS -q gen_S                         # ✅ 队列名（gpu / debug / gen_S）
+#PBS -q gpu                         # ✅ 队列名（gpu / debug / gen_S）
 #PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
 #PBS -N run_3dcnn_train               # 🏷 作业名称
 #PBS -o logs/pegasus/train_3dcnn_out.log
@@ -40,10 +40,7 @@ mkdir -p logs/pegasus/ checkpoints/
 # wget -O checkpoints/SLOW_8x8_R50.pyth https://dl.fbaipublicfiles.com/pytorchvideo/model_zoo/kinetics/SLOW_8x8_R50.pyth
 
 # === 加载 Python + 激活 Conda 环境 ===
-module load intelpython/2022.3.1
-source ${CONDA_PREFIX}/etc/profile.d/conda.sh
-conda deactivate
-source /work/SKIING/chenkaixu/code/med_atn/bin/activate
+source pegasus/setup_env.sh
 
 # === 打印环境信息 ===
 echo "Current working directory: $(pwd)"
@@ -58,4 +55,5 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=none train.fold=5 \
     train.experiment=baseline_rgb_3dcnn \
+    data.batch_size=64 \
     data.num_workers=$(( $(nproc) / 3 ))

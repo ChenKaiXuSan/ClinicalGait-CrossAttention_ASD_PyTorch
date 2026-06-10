@@ -34,7 +34,7 @@
 ###############################################################################
 
 #PBS -A SKIING                        # ✅ 项目名（必须修改）
-#PBS -q gen_S                         # ✅ 队列名（gpu / debug / gen_S）
+#PBS -q gpu                         # ✅ 队列名（gpu / debug / gen_S）
 #PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
 #PBS -N pose_gated_nobgloss_train     # 🏷 Ablation A4a: No bg_loss
 #PBS -t 0-4                           # job array 0-4 (5 folds, 遍历融合层)
@@ -45,10 +45,7 @@ cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
 
 mkdir -p logs/pegasus/ checkpoints/
 
-module load intelpython/2022.3.1
-source ${CONDA_PREFIX}/etc/profile.d/conda.sh
-conda deactivate
-source /work/SKIING/chenkaixu/code/med_atn/bin/activate
+source pegasus/setup_env.sh
 
 echo "Current working directory: $(pwd)"
 echo "PBS job id: $PBS_JOBID, sub-request: $PBS_SUBREQNO (fusion layer index)"
@@ -61,6 +58,7 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=pose_atn train.fold=5 \
     train.experiment=pose_atn_nobg_single_${PBS_SUBREQNO} \
+    data.batch_size=64 \
     data.num_workers=$(( $(nproc) / 3 )) \
     model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
     loss.selection=["cls","attn_loss","tmp"]

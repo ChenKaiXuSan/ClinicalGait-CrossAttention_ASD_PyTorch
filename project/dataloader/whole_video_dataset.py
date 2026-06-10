@@ -22,7 +22,7 @@ Date      	By	Comments
 10-06-2026	Kaixu Chen	chunk-based indexing + improvements:
                          - discard incomplete last chunk (only exact chunk_size frames are included)
                          - separate spatial-only transform for attn_map (Div255+Resize, no temporal ops)
-                         - per-worker lru_cache on read_video to avoid repeated decode
+                         - per-worker lru_cache on video reads to avoid repeated decode
 
 04-05-2025	Kaixu Chen	load the video as batch, this will save the CPU memory.
 
@@ -38,28 +38,109 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 
-from torchvision.io import read_video
-
 from project.dataloader.med_attn_map import MedAttnMap
 
 logger = logging.getLogger(__name__)
+
+
+def _read_video_with_torchcodec(
+    video_path: str, start_frame: int, end_frame: int
+) -> Optional[torch.Tensor]:
+    try:
+        from torchcodec.decoders import VideoDecoder
+    except ImportError:
+        return None
+
+    try:
+        decoder = VideoDecoder(video_path, device="cpu")
+        frame_batch = decoder.get_frames_at(indices=list(range(start_frame, end_frame)))
+    except Exception as exc:
+        logger.debug("torchcodec VideoDecoder failed for %s: %s", video_path, exc)
+        return None
+    return frame_batch.data.contiguous()
+
+
+def _frame_to_tchw(frame: Any) -> torch.Tensor:
+    frame_tensor = torch.from_numpy(frame)
+    if frame_tensor.ndim == 2:
+        frame_tensor = frame_tensor.unsqueeze(-1).expand(-1, -1, 3)
+    if frame_tensor.shape[-1] > 3:
+        frame_tensor = frame_tensor[..., :3]
+    return frame_tensor.permute(2, 0, 1)
+
+
+def _read_video_with_cv2(
+    video_path: str, start_frame: int, end_frame: int
+) -> Optional[torch.Tensor]:
+    try:
+        import cv2
+    except ImportError:
+        return None
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None
+
+    try:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+        frames = []
+        for _ in range(end_frame - start_frame):
+            ok, frame = cap.read()
+            if not ok:
+                break
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(_frame_to_tchw(frame))
+    finally:
+        cap.release()
+
+    if not frames:
+        return None
+    return torch.stack(frames, dim=0).contiguous()
+
+
+def _read_video_with_imageio(
+    video_path: str, start_frame: int, end_frame: int
+) -> Optional[torch.Tensor]:
+    try:
+        import imageio.v3 as iio
+    except ImportError:
+        return None
+
+    frames = []
+    try:
+        for frame_idx, frame in enumerate(iio.imiter(video_path)):
+            if frame_idx < start_frame:
+                continue
+            if frame_idx >= end_frame:
+                break
+            frames.append(_frame_to_tchw(frame))
+    except Exception:
+        return None
+
+    if not frames:
+        return None
+    return torch.stack(frames, dim=0).contiguous()
 
 
 @lru_cache(maxsize=16)
 def _read_video_cached(
     video_path: str, start_frame: int, end_frame: int, fps: int
 ) -> torch.Tensor:
-    """Cache interval-based read_video by (path, start_frame, end_frame, fps).
+    """Cache interval-based video reads by (path, start_frame, end_frame, fps).
 
-    torchvision.io.read_video returns (vframes, audio_info, info) tuple — we only need vframes.
+    Prefer TorchCodec when available, then fall back to OpenCV and imageio.
+    torchvision video IO was removed from newer builds, so avoid that API here.
     """
-    frames, _, _ = read_video(
-        video_path,
-        output_format="TCHW",
-        pts_unit="sec",
-        start_pts=start_frame / fps,
-        end_pts=end_frame / fps,
-    )
+    frames = _read_video_with_torchcodec(video_path, start_frame, end_frame)
+    if frames is None:
+        frames = _read_video_with_cv2(video_path, start_frame, end_frame)
+    if frames is None:
+        frames = _read_video_with_imageio(video_path, start_frame, end_frame)
+    if frames is None:
+        raise RuntimeError(
+            "Could not read video frames. Install torchcodec, opencv-python, "
+            "or imageio with an FFmpeg-capable backend."
+        )
     return frames
 
 

@@ -130,4 +130,4 @@ MNIST
 
 logs/
 checkpoints/
-logs_bak/
+logs-bak/
