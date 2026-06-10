@@ -72,8 +72,6 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
             classification_module = PoseAttnTrainer(hparams)
         elif hparams.model.fuse_method == "se_atn":
             classification_module = SEAttnTrainer(hparams)
-        # elif hparams.model.fuse_method == "cross_atn":
-        #     classification_module = CrossAttentionTrainer(hparams)
         elif hparams.model.fuse_method in ["add", "mul", "concat", "avg"]:
             classification_module = EarlyFusion3DCNNTrainer(hparams)
         elif hparams.model.fuse_method == "late":

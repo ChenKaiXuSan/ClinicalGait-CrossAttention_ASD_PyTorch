@@ -68,5 +68,6 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 # Ablation A1: SE-Fusion — fusion at block ${PBS_SUBREQNO}
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=se_atn train.fold=5 \
+    train.experiment=se_atn_prefix_${PBS_SUBREQNO} \
     data.num_workers=$(( $(nproc) / 3 )) \
     model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single

@@ -67,5 +67,6 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 # Best PoseGated config: multi-layer fusion + all loss terms + side heads + gate_bias=2.0
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=pose_atn train.fold=5 \
+    train.experiment=pose_gated_best_multi_${PBS_SUBREQNO} \
     data.num_workers=$(( $(nproc) / 3 )) \
     model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=multi

@@ -60,6 +60,7 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 # Ablation A4a: PoseGATED w/o bg_loss (background suppression loss)
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=pose_atn train.fold=5 \
+    train.experiment=pose_atn_nobg_single_${PBS_SUBREQNO} \
     data.num_workers=$(( $(nproc) / 3 )) \
     model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
     loss.selection=["cls","attn_loss","tmp"]

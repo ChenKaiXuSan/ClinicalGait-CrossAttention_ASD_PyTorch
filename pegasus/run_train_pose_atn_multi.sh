@@ -58,5 +58,6 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 # Ablation A5 multi: PoseGated with {0..${PBS_SUBREQNO}} layers fused
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=pose_atn train.fold=5 \
+    train.experiment=pose_atn_multi_${PBS_SUBREQNO} \
     data.num_workers=$(( $(nproc) / 3 )) \
     model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=multi

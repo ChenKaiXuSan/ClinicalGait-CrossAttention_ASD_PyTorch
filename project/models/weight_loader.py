@@ -13,6 +13,11 @@ import torch
 import torch.nn as nn
 from pytorchvideo.models.hub.resnet import slow_r50
 
+SLOW_R50_URL = (
+    "https://dl.fbaipublicfiles.com/pytorchvideo/model_zoo/kinetics/"
+    "SLOW_8x8_R50.pyth"
+)
+
 
 def modify_first_layer(model: nn.Module) -> None:
     """Replace stem conv with custom kernel/stride/padding."""
@@ -40,8 +45,9 @@ def init_slow_r50(weight_path: str | None, class_num: int) -> nn.Module:
     Parameters
     ----------
     weight_path : str | None
-        Path to a local ``.pth`` / ``.pyth`` checkpoint.
-        Empty string or *None* → skip loading, keep random init.
+        Path to a local .pth / .pyth checkpoint. If the path is set
+        but does not exist, the official Kinetics SlowR50 checkpoint is
+        downloaded there. Empty string or *None* skips loading.
     class_num : int
         Number of output classes (classification head will be replaced).
 
@@ -54,14 +60,19 @@ def init_slow_r50(weight_path: str | None, class_num: int) -> nn.Module:
 
     model = slow_r50(pretrained=False)
 
-    # Load weights from local file if it exists
+    if weight_path is not None and not weight_path.exists():
+        print(f"[INFO] Downloading SlowR50 weights to: {weight_path}")
+        weight_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.hub.download_url_to_file(SLOW_R50_URL, str(weight_path), progress=True)
+
+    # Load weights from local file if it exists.
     if weight_path is not None and weight_path.exists():
         print(f"[INFO] Loading local weights: {weight_path}")
         state = torch.load(weight_path, map_location="cpu")
         model_state = state.get("model_state", state)
         model.load_state_dict(model_state)
     else:
-        print("[INFO] No valid weight path — model will be random.")
+        print("[INFO] No valid weight path - model will be random.")
 
     # Modify first layer and classification head
     modify_first_layer(model)

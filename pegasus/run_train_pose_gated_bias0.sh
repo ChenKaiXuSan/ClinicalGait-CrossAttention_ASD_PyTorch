@@ -60,6 +60,7 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 # Ablation A2a: PoseGated gate init bias = 0.0 (neutral, equal trust in both modalities)
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=pose_atn train.fold=5 \
+    train.experiment=pose_atn_bias0_single_${PBS_SUBREQNO} \
     data.num_workers=$(( $(nproc) / 3 )) \
     model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
     model.gate_init_bias=0.0

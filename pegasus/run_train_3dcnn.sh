@@ -57,4 +57,5 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 # === Baseline Res3DCNN: fuse=none → 纯 RGB，无 skeleton prior ===
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=none train.fold=5 \
+    train.experiment=baseline_rgb_3dcnn \
     data.num_workers=$(( $(nproc) / 3 ))

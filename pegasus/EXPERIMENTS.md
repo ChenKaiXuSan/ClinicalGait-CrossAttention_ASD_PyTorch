@@ -1,133 +1,170 @@
-# Pegasus 实验总览表 (Ablation Matrix)
+# Pegasus 实验总览表（按当前脚本/代码状态）
 
-## 一、所有实验一览
+这份表只记录当前 `pegasus/*.sh` 和 `configs/config.yaml` 里实际能看到的实验设置。旧版里有些条目是论文设计稿，例如 `run_train_early_fuse_add.sh` / `concat.sh` / `mul.sh`，但当前目录里没有这些脚本，所以这里拆成“已有脚本”和“待补实验”。
 
-```
-┌──────────────────────────────────────┬─────────────────────────┬──────────────┬──────────────────────────────────────────┐
-│ 脚本                                │ Ablation              │ 对比什么      │ 论文表格                                   │
-├──────────────────────────────────────┼─────────────────────────┼──────────────┼──────────────────────────────────────────┤
-│                                      │                         │              │                                          │
-│ BASELINE                            │                         │              │                                          │
-│ ─────────────────────────────────  │                         │              │                                          │
-│ run_train_3dcnn.sh                  │ Baseline               │ "纯 RGB"    │ Table I Row 1                             │
-│ run_train_skeleton_only.sh          │ Skeleton-only          │ "无 prior"   │ Table I Row Skeleton                      │
-│                                      │                         │              │                                          │
-│ ABLATION A1: FUSION METHOD (5 methods)                    │              │                                          │
-│ ────────────────────────           │                         │              │                                          │
-│ run_train_early_fuse_add.sh         │ A1a  early add         │ "逐像素加"   │ Table I Row A1a                           │
-│ run_train_early_fuse_concat.sh      │ A1b  early concat      │ "通道拼接"   │ Table I Row A1b                           │
-│ run_train_early_fuse_mul.sh         │ A1c  early mul         │ "逐像素乘"   │ Table I Row A1c                           │
-│ run_train_cross_atn.sh              │ A1d  cross-attn        │ "QKV self-    │ Table I Row A1d                           │
-│                                      │                        │    attn (THW) │                                          │
-│ run_train_se_atn_single.sh          │ A1e  se-fusion         │ "Squeeze-excit. │ Table I Row A1e                          │
-│                                      │                        │    global ch."│                                          │
-│                                      │                         │              │                                          │
-│ ABLATION A2: GATE INIT BIAS (3 values)                  │              │                                          │
-│ ──────────────────────────         │                         │              │                                          │
-│ run_train_3dcnn.sh + default(2.0)   │ A2a  gate_bias=2.0     │ "偏 RGB       │ Table I Row A2a (default = reference)    │
-│ run_train_pose_gated_bias0.sh       │ A2b  gate_bias=0.0     │ "无偏         │ Table I Row A2b                           │
-│ run_train_pose_gated_bias_neg1.sh   │ A2c  gate_bias=-1.0    │ "偏 skeleton  │ Table I Row A2c                           │
-│                                      │                         │              │                                          │
-│ ABLATION A3: SIDE HEAD (yes/no)     │                         │              │                                          │
-│ ──────────────────────             │                         │              │                                          │
-│ run_train_3dcnn.sh + default(True)  │ A3a  side_head=True    │ "有中间监督"   │ Table I Row A3a (default = reference)    │
-│ run_train_pose_gated_nosidehead.sh  │ A3b  side_head=False   │ "无中间监督"   │ Table I Row A3b                           │
-│                                      │                         │              │                                          │
-│ ABLATION A4: LOSS COMPONENTS (2 ablation)                 │              │                                          │
-│ ───────────────────────────        │                         │              │                                          │
-│ run_train_3dcnn.sh + default(all)   │ A4a  all losses        │ "bg+tmp       │ Table I Row A4a (default = reference)    │
-│ run_train_pose_gated_nobgloss.sh    │ A4b  w/o bg_loss       │ "去掉背景抑制" │ Table I Row A4b                           │
-│ run_train_pose_gated_notmploss.sh   │ A4c  w/o tmp_loss      │ "去掉时间平滑" │ Table I Row A4c                           │
-│                                      │                         │              │                                          │
-│ ABLATION A5: FUSION LAYERS          │                         │              │                                          │
-│ ────────────────────────           │                         │              │                                          │
-│ run_train_pose_atn_single.sh (×5)   │ A5a-e  single[i]       │ "单点 fusion  │ Table I Row A5a-e; Fig: line chart       │
-│                                      │                        │   at layer i" │   of layers vs accuracy                   │
-│ run_train_pose_atn_multi.sh (×5)    │ A5f-j  multi[0..4]     │ "多层融合      │ Table I Row A5f-j; Fig: bar chart        │
-│                                      │                        │   prefix i"  │   of fusion count vs accuracy             │
-│ run_train_pose_gated_best.sh        │ A5-ultimate best       │ "所有层+       │ Table I Row Best / Method of Record      │
-│                                      │                        │    all losses │                                          │
-└──────────────────────────────────────┴─────────────────────────┴──────────────┴──────────────────────────────────────────┘
+## 一、当前已有脚本
+
+| 脚本 | 实验角色 | 实际 override | PBS array 含义 | 当前状态 |
+|---|---|---|---|---|
+| `run_train_3dcnn.sh` | RGB-only baseline | `model.fuse_method=none`, `train.fold=5` | 无 array | 可作为无 fusion 基线 |
+| `run_train_skeleton_only.sh` | no-prior baseline | `model.fuse_method=none`, `train.attn_map=False`, `train.fold=5` | `0-4`，但脚本没有使用 `$PBS_SUBREQNO` | 当前工作区已删除；若恢复，建议加 `train.experiment=baseline_rgb_noattn` |
+| `run_train_pose_atn_single.sh` | PoseGated 单层注入 | `model.fuse_method=pose_atn`, `model.ablation_study=single`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4` = 只在对应 block 融合 | 可跑 |
+| `run_train_pose_atn_multi.sh` | PoseGated 多层累加注入 | `model.fuse_method=pose_atn`, `model.ablation_study=multi`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4` = `[0]` 到 `[0,1,2,3,4]` | 可跑 |
+| `run_train_pose_gated_best.sh` | PoseGated full / final config | `model.fuse_method=pose_atn`, `model.ablation_study=multi`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4`，其中 `4` 是 full `[0..4]` | 名字是 best，但实际仍扫 multi prefix |
+| `run_train_pose_gated_bias0.sh` | gate bias 消融 | 上面 single 设置 + `model.gate_init_bias=0.0` | `0..4` = single layer index | 可跑 |
+| `run_train_pose_gated_bias_neg1.sh` | gate bias 消融 | 上面 single 设置 + `model.gate_init_bias=-1.0` | `0..4` = single layer index | 可跑 |
+| `run_train_pose_gated_nosidehead.sh` | side head 消融 | 上面 single 设置 + `model.use_side_heads=False` | `0..4` = single layer index | 可跑 |
+| `run_train_pose_gated_nobgloss.sh` | loss 消融 | 上面 single 设置 + `loss.selection=["cls","attn_loss","tmp"]` | `0..4` = single layer index | 可跑 |
+| `run_train_pose_gated_notmploss.sh` | loss 消融 | 上面 single 设置 + `loss.selection=["cls","attn_loss","bg"]` | `0..4` = single layer index | 可跑 |
+| `run_train_se_atn_single.sh` | SE fusion 对比 | `model.fuse_method=se_atn`, `model.ablation_study=single`, `model.fusion_layers=$PBS_SUBREQNO` | 当前代码里 `fusion_layers=0..4` 映射为 prefix `[0]` 到 `[0..4]`，不是严格 single | 可跑，但脚本文案需要注意 |
+| `run_train_cross_atn.sh` | Cross-attention 对比 | `model.fuse_method=cross_atn`, `model.fusion_layers=$PBS_SUBREQNO` | 当前代码里 `fusion_layers=0..4` 映射为 prefix `[0]` 到 `[0..4]` | 当前工作区已删除；若恢复，还需要接回 `cross_atn` trainer，并建议加 `train.experiment=cross_atn_prefix_$PBS_SUBREQNO` |
+
+## 二、日志目录命名
+
+当前 Pegasus 脚本已显式传入 `train.experiment=...`，因此日志会落到：
+
+```text
+logs/train/<train.experiment>/<date>/<time>/
 ```
 
-## 二、消融实验设计逻辑图
+已设置的 experiment tag：
 
-```
-核心问题: PoseGated 为什么比 Baseline 好？
-         ↓
-    ┌────────────────────────────────────┐
-    │ A1: 哪个 fusion 策略最好？          │
-    │   - early add/concat/mul           │ ← 在输入端融合
-    │   - cross-attention                │ ← QKV self-attn on frames
-    │   - SE-fusion                      │ ← global channel scaling
-    │   - pose-gated (ours)              │ ← spatially-adaptive gate per channel
-    │                                    │
-    │ A5: fusion 在哪层注入最优？         │
-    │   - single[i] vs multi[0..4]       │ ← layer ablation
-    │                                    │
-    │ A2: Gate 初始偏向 RGB 还是 skeleton?│
-    │   - bias=2.0 → g≈0.88 (偏 RGB)    │ ← default
-    │   - bias=0.0 → g=0.50 (无偏)      │
-    │   - bias=-1.0 → g=0.27 (偏 skeleton)│
-    │                                    │
-    │ A3: Side head 辅助监督有用吗？     │
-    │   - True vs False                  │ ← side head on/off
-    │                                    │
-    │ A4: bg_loss / tmp_loss 各自贡献？  │
-    │   - bg_loss (背景抑制)             │ ← spatial constraint
-    │   - tmp_loss (时间平滑)            │ ← temporal constraint
-    └────────────────────────────────────┘
-         ↓
-    Best config = multi[4] + side_head + all losses + bias=2.0
-```
+| 脚本 | `train.experiment` |
+|---|---|
+| `run_train_3dcnn.sh` | `baseline_rgb_3dcnn` |
+| `run_train_se_atn_single.sh` | `se_atn_prefix_${PBS_SUBREQNO}` |
+| `run_train_pose_atn_single.sh` | `pose_atn_single_${PBS_SUBREQNO}` |
+| `run_train_pose_atn_multi.sh` | `pose_atn_multi_${PBS_SUBREQNO}` |
+| `run_train_pose_gated_best.sh` | `pose_gated_best_multi_${PBS_SUBREQNO}` |
+| `run_train_pose_gated_bias0.sh` | `pose_atn_bias0_single_${PBS_SUBREQNO}` |
+| `run_train_pose_gated_bias_neg1.sh` | `pose_atn_bias_neg1_single_${PBS_SUBREQNO}` |
+| `run_train_pose_gated_nosidehead.sh` | `pose_atn_noside_single_${PBS_SUBREQNO}` |
+| `run_train_pose_gated_nobgloss.sh` | `pose_atn_nobg_single_${PBS_SUBREQNO}` |
+| `run_train_pose_gated_notmploss.sh` | `pose_atn_notmp_single_${PBS_SUBREQNO}` |
 
-## 三、消融矩阵完整对照表 (Paper Table)
+这样 `bias0`、`bias_neg1`、`noside`、`nobg`、`notmp` 不会再混在默认的 `3dcnn_attn_map_True_pose_atn_single_i` 目录名里。
 
-```
-┌─────┬──────────────┬──────────────┬──────────────┬───────────────────┬─────────────┐
-│ Row │ Method       │ fusion_layers│ side_heads   │ loss_selection    │ gate_bias   │
-├─────┼──────────────┼──────────────┼──────────────┼───────────────────┼─────────────┤
-│  1  │ Baseline     │ none         │ False        │ [cls]             │ N/A         │
-│ A1a │ Early (+)    │ none         │ False        │ [cls]             │ N/A         │
-│ A1b │ Early (cat)  │ none         │ False        │ [cls]             │ N/A         │
-│ A1c │ Early (mul)  │ none         │ False        │ [cls]             │ N/A         │
-│ A1d │ Cross-Attn   │ single[i]    │ False        │ [cls]             │ N/A         │
-│ A1e │ SE-Fusion    │ single[i]    │ False        │ [cls]             │ N/A         │
-│ A2a │ PoseGated(★) │ single[i]    │ True         │ all               │ 2.0 (default)│
-│ A2b │ gate_bias=0  │ single[i]    │ True         │ all               │ 0.0         │
-│ A2c │ gate_bias=-1 │ single[i]    │ True         │ all               │ -1.0        │
-│ A3a │ side_head=T  │ single[i]    │ True (★)     │ all               │ 2.0         │
-│ A3b │ side_head=F  │ single[i]    │ False        │ [cls, bg, tmp]    │ 2.0         │
-│ A4a │ all_losses   │ single[i]    │ True         │ [all] (★)        │ 2.0         │
-│ A4b │ w/o bg       │ single[i]    │ True         │ [cls, attn, tmp]  │ 2.0         │
-│ A4c │ w/o tmp      │ single[i]    │ True         │ [cls, attn, bg]   │ 2.0         │
-│ A5a │ single[0]    │ [0]          │ True         │ all               │ 2.0         │
-│ A5b │ single[1]    │ [1]          │ True         │ all               │ 2.0         │
-│ ... │ ...          │ ...          │ ...          │ ...               │ ...         │
-│ A5e │ single[4]    │ [4]          │ True         │ all               │ 2.0         │
-│ A5f │ multi[0]     │ [0]          │ True         │ all               │ 2.0         │
-│ A5g │ multi[1]     │ [0,1]        │ True         │ all               │ 2.0         │
-│ ... │ ...          │ ...          │ ...          │ ...               │ ...         │
-│ A5j │ multi[4]★    │ [0..4]       │ True         │ all               │ 2.0         │
-│ ★   │ BEST (Final) │ [0..4]       │ True         │ all               │ 2.0         │
-└─────┴──────────────┴──────────────┴──────────────┴───────────────────┴─────────────┘
+## 三、关键代码映射
 
-★ = 默认配置 / 本文推荐方法
+`configs/config.yaml` 默认值：
+
+```yaml
+loss.selection: ["cls", "attn_loss", "bg", "tmp"]
+model.use_side_heads: True
+model.fuse_method: pose_atn
+model.fusion_layers: 5
+model.ablation_study: single
+train.fold: 5
 ```
 
-## 四、每个实验的论文 Figure 引用建议
+PoseGated 的 `fusion_layers` 映射在 `project/models/pose_fusion_res_3dcnn.py`：
 
-```
-Figure 1: Overview diagram — PoseGated fusion block architecture
-Figure 2: Gate weight visualization (per class, per layer)
-Figure 3: Ablation results
-         ├── Subplot A: fuse_method comparison (A1) — bar chart
-         ├── Subplot B: gate_init_bias comparison (A2) — line chart [-1, 0, 2]
-         ├── Subplot C: side head impact (A3) — bar chart (T/F)
-         ├── Subplot D: loss components (A4a,b) — two bars each
-         └── Subplot E: fusion layers (A5a-e + A5f-j) — two line charts
-Figure 4: Gate weight analysis by disease class (correct vs wrong cases)
-Figure 5: Skeleton fidelity → accuracy correlation scatter plot
-Figure 6: Per-class ROC curves
-Figure 7: Case study — per-frame gate weights on representative videos
-```
+| `ablation_study` | `fusion_layers` | 实际融合层 |
+|---|---:|---|
+| `single` | `0` | `[0]` |
+| `single` | `1` | `[1]` |
+| `single` | `2` | `[2]` |
+| `single` | `3` | `[3]` |
+| `single` | `4` | `[4]` |
+| `multi` | `0` | `[0]` |
+| `multi` | `1` | `[0,1]` |
+| `multi` | `2` | `[0,1,2]` |
+| `multi` | `3` | `[0,1,2,3]` |
+| `multi` | `4` | `[0,1,2,3,4]` |
+| 任意 | `5` | `[0,1,2,3,4]` |
+
+层含义：
+
+| index | backbone block | channel |
+|---:|---|---:|
+| 0 | stem | 64 |
+| 1 | layer1 | 256 |
+| 2 | layer2 | 512 |
+| 3 | layer3 | 1024 |
+| 4 | layer4 | 2048 |
+
+注意：多数 Pegasus 脚本里 `#PBS -t 0-4` 不是 fold index，而是传给 `model.fusion_layers` 的融合层/融合层前缀索引。`train.fold=5` 是训练配置里的 fold 数或 fold 参数，不能和 `$PBS_SUBREQNO` 混在一起解释。
+
+## 四、建议的论文/实验对比矩阵
+
+### A0. Baseline
+
+| Row | Method | 脚本 | 参数 | 目的 |
+|---|---|---|---|---|
+| B1 | RGB-only | `run_train_3dcnn.sh` | `fuse_method=none` | 主基线 |
+| B2 | RGB-only, no attn map | `run_train_skeleton_only.sh` | `fuse_method=none`, `attn_map=False` | 检查 dataloader 不加载 prior 的情况 |
+
+说明：`run_train_skeleton_only.sh` 当前不是 skeleton-only。若论文需要 “skeleton-only”，需要新增 dataloader/model 支持仅骨架输入。
+
+### A1. Fusion Method
+
+| Row | Method | 当前脚本/代码 | 建议状态 |
+|---|---|---|---|
+| A1a | Early add | 代码支持 `model.fuse_method=add`，无 Pegasus 脚本 | 待补脚本 |
+| A1b | Early concat | 代码支持 `model.fuse_method=concat`，无 Pegasus 脚本 | 待补脚本 |
+| A1c | Early mul | 代码支持 `model.fuse_method=mul`，无 Pegasus 脚本 | 待补脚本 |
+| A1d | SE fusion | `run_train_se_atn_single.sh` | 可跑；注意实际是 prefix mapping |
+| A1e | Cross-attention | `run_train_cross_atn.sh` | 先恢复 `project/train.py` 的 `cross_atn` trainer 入口 |
+| A1f | PoseGated | `run_train_pose_atn_single.sh` / `run_train_pose_atn_multi.sh` | 主方法 |
+
+### A2. Gate Init Bias
+
+| Row | Method | 脚本 | 参数 |
+|---|---|---|---|
+| A2a | bias = 2.0 | `run_train_pose_atn_single.sh` | 默认 `model.gate_init_bias=2.0` |
+| A2b | bias = 0.0 | `run_train_pose_gated_bias0.sh` | `model.gate_init_bias=0.0` |
+| A2c | bias = -1.0 | `run_train_pose_gated_bias_neg1.sh` | `model.gate_init_bias=-1.0` |
+
+建议：这组三个脚本目前都在 `single` 模式下扫 `fusion_layers=0..4`。论文里最好固定同一个 fusion layer，或先用 A5 选出的 best layer/prefix 后再比较 bias。
+
+### A3. Side Head
+
+| Row | Method | 脚本 | 参数 |
+|---|---|---|---|
+| A3a | with side head | `run_train_pose_atn_single.sh` | 默认 `model.use_side_heads=True` |
+| A3b | without side head | `run_train_pose_gated_nosidehead.sh` | `model.use_side_heads=False` |
+
+建议：同样固定 fusion setting 再对比，否则会和 layer ablation 混在一起。
+
+### A4. Loss Components
+
+| Row | Method | 脚本 | `loss.selection` |
+|---|---|---|---|
+| A4a | all losses | `run_train_pose_atn_single.sh` | `["cls","attn_loss","bg","tmp"]` |
+| A4b | w/o bg loss | `run_train_pose_gated_nobgloss.sh` | `["cls","attn_loss","tmp"]` |
+| A4c | w/o tmp loss | `run_train_pose_gated_notmploss.sh` | `["cls","attn_loss","bg"]` |
+
+### A5. Fusion Layers
+
+| Row | Method | 脚本 | 对比内容 |
+|---|---|---|---|
+| A5a-e | single layer | `run_train_pose_atn_single.sh` | `[0]`, `[1]`, `[2]`, `[3]`, `[4]` |
+| A5f-j | multi prefix | `run_train_pose_atn_multi.sh` | `[0]`, `[0,1]`, `[0,1,2]`, `[0,1,2,3]`, `[0,1,2,3,4]` |
+| Final | full PoseGated | `run_train_pose_gated_best.sh` with `PBS_SUBREQNO=4` | `[0,1,2,3,4]` + side head + all losses + default bias |
+
+## 五、当前最该补/修的地方
+
+1. 修正文案：所有 `#PBS -t 0-4 (5 folds, 遍历融合层)` 应改成 `0-4 = fusion layer / prefix index`，因为 `$PBS_SUBREQNO` 没有传给 fold。
+2. 决定是否恢复 `cross_atn`：`project/train.py` 里 `cross_atn` 分支目前被注释；若要跑 `run_train_cross_atn.sh`，需要接回对应 trainer。
+3. 补 early fusion 脚本：`add` / `mul` / `concat` 在代码里支持，但 Pegasus 目录没有对应脚本。
+4. 重新命名或修正 `run_train_skeleton_only.sh`：当前它是 `attn_map=False` baseline，不是真正 skeleton-only。
+5. 如果论文表格要干净，A2/A3/A4 最好固定同一个 fusion setting，例如 `single[best]` 或 `multi[4]`，不要让每个消融同时扫 5 个 layer。
+
+## 六、推荐跑实验顺序
+
+1. 先跑主结果：`run_train_3dcnn.sh`、`run_train_pose_gated_best.sh` 的 `PBS_SUBREQNO=4`。
+2. 再跑 A5：`run_train_pose_atn_single.sh` 和 `run_train_pose_atn_multi.sh`，确定 best fusion setting。
+3. 固定 best setting 后跑 A2/A3/A4，得到干净消融。
+4. 最后补 A1 的外部方法：SE、cross-attn、early add/mul/concat。
+
+## 七、Figure 建议
+
+| Figure | 内容 | 数据来源 |
+|---|---|---|
+| Fig. 1 | PoseGated block / overall architecture | 方法图 |
+| Fig. 2 | Fusion method comparison | A1 |
+| Fig. 3 | Single vs multi fusion layer | A5 |
+| Fig. 4 | Gate init bias curve | A2 |
+| Fig. 5 | Side head / loss component ablation | A3 + A4 |
+| Fig. 6 | Per-class ROC / confusion matrix | final model |
+| Fig. 7 | Gate/attention visualization case study | final model checkpoint |

@@ -58,6 +58,7 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 # Ablation A2b: PoseGated gate init bias = -1.0 (skeleton-biased: g≈0.27 at t=0)
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=pose_atn train.fold=5 \
+    train.experiment=pose_atn_bias_neg1_single_${PBS_SUBREQNO} \
     data.num_workers=$(( $(nproc) / 3 )) \
     model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
     model.gate_init_bias=-1.0
