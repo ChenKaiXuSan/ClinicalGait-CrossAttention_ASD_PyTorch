@@ -22,6 +22,7 @@ Date      	By	Comments
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Type
 
+import numpy as np
 import os
 import torch
 from torchvision.utils import save_image
@@ -67,6 +68,19 @@ class MedAttnMap:
 
         self.doctor_res = self.load_doctor_res(doctor_res_path)
         self.skeleton = pd.read_pickle(skeleton_path + "/whole_annotations.pkl")
+
+        # pre-build per-video skeleton cache (avoid O(N) scan each __getitem__)
+        self._skeleton_by_video: Dict[str, dict] = {}
+        for entry in self.skeleton["annotations"]:
+            video_name = entry["frame_dir"].split("/")[-1]
+            # Convert numpy arrays to torch.Tensor for convenience
+            keypoint_data = torch.tensor(entry["keypoint"]) if isinstance(entry.get("keypoint"), np.ndarray) else entry["keypoint"]
+            score_data = torch.tensor(entry["keypoint_score"]) if isinstance(entry.get("keypoint_score"), np.ndarray) else entry["keypoint_score"]
+            self._skeleton_by_video[video_name] = {
+                "keypoint": keypoint_data,
+                "keypoint_score": score_data,
+                "total_frames": entry["total_frames"],
+            }
 
     def load_doctor_res(self, docker_res_path: str) -> list[pd.DataFrame]:
         """
@@ -121,11 +135,35 @@ class MedAttnMap:
         keypoint: torch.Tensor,
         confidence_score,
     ) -> torch.Tensor:
-        """
-        Generate the attention map for the given video path.
-        """
+        """Generate attention map for the full video [T, H, W].
 
-        t, c, h, w = vframes.shape
+        Calls generate_attention_map_chunk with start_frame=0 for backward compatibility.
+        """
+        return self.generate_attention_map_chunk(
+            vframes=vframes,
+            mapped_keypoint=mapped_keypoint,
+            keypoint=keypoint,
+            confidence_score=confidence_score,
+            start_frame=0,
+        )
+
+    def generate_attention_map_chunk(
+        self,
+        vframes: torch.Tensor,
+        mapped_keypoint: list,
+        keypoint: torch.Tensor,
+        confidence_score,
+        start_frame: int = 0,
+    ) -> torch.Tensor:
+        """Generate attention map for a chunk of frames [T_chunk, H, W].
+
+        Uses skeleton/keypoints from `start_frame` onwards, avoiding full-video iteration.
+        vframes shape: (chunk_size, C, H, W)
+        Returns:       (chunk_size, H, W)
+        """
+        t_chunk = vframes.shape[0]
+        h = vframes.shape[-2]
+        w = vframes.shape[-1]
 
         sigma = 0.1 * min(h, w)  # standard deviation for Gaussian kernel
 
@@ -135,14 +173,14 @@ class MedAttnMap:
 
         res = []
 
-        for frame in range(t):
+        for idx in range(t_chunk):
+            frame_abs = start_frame + idx
 
             attn_maps = []
 
             for i in mapped_keypoint:
-
-                x = keypoint[0, frame, i, 0] * w
-                y = keypoint[0, frame, i, 1] * h
+                x = keypoint[0, frame_abs, i, 0] * w if (keypoint.size if hasattr(keypoint, "size") else keypoint.numel()) > 0 else -1
+                y = keypoint[0, frame_abs, i, 1] * h if (keypoint.size if hasattr(keypoint, "size") else keypoint.numel()) > 0 else -1
 
                 # none keypoint
                 if x < 0 or y < 0:
@@ -152,19 +190,20 @@ class MedAttnMap:
                 dist_squared = (x_grid - x) ** 2 + (y_grid - y) ** 2
                 heatmap = torch.exp(-dist_squared / (2 * sigma**2))
 
-                curr_confidence = confidence_score[0, frame, i]
+                curr_confidence = confidence_score[0, frame_abs, i] if confidence_score is not None else 0.0
                 if curr_confidence > 0.8:
                     heatmap *= curr_confidence
 
                 attn_maps.append(heatmap)
 
             # TODO: 这里可以将不同关键的信息都保存下来
-            attn_stack = torch.stack(attn_maps, dim=0)  # [K, H, W]
-            attn_mean = torch.mean(attn_stack, dim=0).unsqueeze(0)
+            attn_stack = torch.stack(attn_maps, dim=0) if attn_maps else torch.zeros((0, h, w))
+            # Keep per-frame map 2D (H, W) so stacked chunk is (T_chunk, H, W).
+            attn_mean = torch.mean(attn_stack, dim=0) if attn_stack.numel() > 0 else torch.zeros((h, w))
 
             res.append(attn_mean)
 
-        return torch.stack(res, dim=0)  # [T, H, W]
+        return torch.stack(res, dim=0)  # [T_chunk, H, W]
 
     def save_attention_map(
         self, attention_map: torch.Tensor, save_path: str, video_name: str

@@ -19,6 +19,11 @@ HISTORY:
 Date      	By	Comments
 ----------	---	---------------------------------------------------------
 
+10-06-2026	Kaixu Chen	chunk-based indexing + improvements:
+                         - discard incomplete last chunk (only exact chunk_size frames are included)
+                         - separate spatial-only transform for attn_map (Div255+Resize, no temporal ops)
+                         - per-worker lru_cache on read_video to avoid repeated decode
+
 04-05-2025	Kaixu Chen	load the video as batch, this will save the CPU memory.
 
 23-04-2025	Kaixu Chen	init the code.
@@ -26,10 +31,10 @@ Date      	By	Comments
 
 from __future__ import annotations
 
-import logging
 import json
-
-from typing import Any, Callable, Dict, Optional, Tuple
+import logging
+from functools import lru_cache
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 
@@ -40,108 +45,204 @@ from project.dataloader.med_attn_map import MedAttnMap
 logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=16)
+def _read_video_cached(
+    video_path: str, start_frame: int, end_frame: int, fps: int
+) -> torch.Tensor:
+    """Cache interval-based read_video by (path, start_frame, end_frame, fps).
+
+    torchvision.io.read_video returns (vframes, audio_info, info) tuple — we only need vframes.
+    """
+    frames, _, _ = read_video(
+        video_path,
+        output_format="TCHW",
+        pts_unit="sec",
+        start_pts=start_frame / fps,
+        end_pts=end_frame / fps,
+    )
+    return frames
+
+
 class LabeledGaitVideoDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         experiment: str,
         labeled_video_paths: list[Tuple[str, Optional[dict]]],
         transform: Optional[Callable[[dict], Any]] = None,
+        attn_transform: Optional[Any] = None,
         doctor_res_path: str = "",
         skeleton_path: str = "",
+        chunk_size: int = 8,
     ) -> None:
         super().__init__()
 
-        self._transform = transform
-        self._labeled_videos = labeled_video_paths
-        # self._index_map = self.prepare_video_mapping_info(
-        #     labeled_video_paths=labeled_video_paths,
-        #     clip_duration=clip_duration,
-        # )
+        self._video_transform = (
+            transform  # full pipeline: UniformTemporalSubsample + Div255 + Resize
+        )
+        self._attn_transform = attn_transform  # spatial only: Div255 + Resize
+        self._chunk_size = (
+            chunk_size  # frames per chunk (== uniform_temporal_subsample_num)
+        )
         self._experiment = experiment
+        self._shape_debug_logged = False
 
         if "True" in self._experiment:
             self.attn_map = MedAttnMap(doctor_res_path, skeleton_path)
 
-    def __len__(self):
-        return len(self._labeled_videos)
+        # pre-build index_map: one entry per chunk, spanning all videos
+        self._index_map = self.prepare_chunk_index(labeled_video_paths)
 
-    def move_transform(self, vframes: torch.Tensor, fps: int) -> torch.Tensor:
+    def prepare_chunk_index(
+        self, labeled_video_paths: list[Tuple[str, Optional[dict]]]
+    ) -> List[dict[str, Any]]:
+        """Return a flat list of {video_path, start_frame, end_frame, label, disease, video_name}
+        for every chunk across all videos.  Only chunks with EXACTLY chunk_size frames are included;
+        the last incomplete chunk is discarded."""
 
-        t, *_ = vframes.shape
+        index_map: List[dict[str, Any]] = []
 
-        batch_res = []
+        for json_path in labeled_video_paths:
+            with open(json_path) as f:
+                info = json.load(f)
 
-        for f in range(0, t, fps):
-            one_sec_vframes = vframes[f : f + fps, :, :, :]
+            video_path = info["video_path"]
+            frame_count = info["frame_count"]
 
-            if self._transform is not None:
-                transformed_img = self._transform(one_sec_vframes)
+            fps = int(info.get("video_fps", 30))  # store fps for interval reading
 
-                batch_res.append(transformed_img.permute(1, 0, 2, 3))  # c, t, h, w
-            else:
-                logger.warning("no transform")
-                batch_res.append(one_sec_vframes.permute(1, 0, 2, 3))  # c, t, h, w
+            # only keep full chunks (discard remainder frames at end)
+            full_chunks = frame_count // self._chunk_size
+            for start in range(0, full_chunks * self._chunk_size, self._chunk_size):
+                index_map.append(
+                    {
+                        "video_path": video_path,
+                        "video_name": info["video_name"],
+                        "start_frame": start,
+                        "end_frame": start + self._chunk_size,
+                        "label": info["label"],
+                        "disease": info["disease"],
+                        "fps": fps,  # cache fps so __getitem__ doesn't re-read JSON
+                    }
+                )
 
-        return torch.stack(batch_res, dim=0)  # b, c, t, h, w
+        logger.info(
+            f"chunk index prepared: {len(index_map)} chunks from {len(labeled_video_paths)} videos"
+        )
+        return index_map
+
+    def __len__(self) -> int:
+        return len(self._index_map)
+
+    def _apply_video_transform(self, data_tensor: torch.Tensor) -> torch.Tensor:
+        """Apply full pipeline (UniformTemporalSubsample + Div255 + Resize) to video frames.
+
+        Args:
+            data_tensor: shape (T, C, H, W).
+
+        Returns:
+            (C, T', H, W).
+        """
+        if not self._video_transform:
+            logger.warning("no video transform provided")
+            return data_tensor
+        result = self._video_transform(
+            data_tensor
+        )  # → (T', C, H, W) with temporal permute
+        return result.permute(1, 0, 2, 3)  # → (C, T', H, W) for model input
+
+    def _apply_attn_transform(self, data_tensor: torch.Tensor) -> torch.Tensor:
+        """Apply spatial-only transform (Div255 + Resize) to attention maps.
+
+        Attention maps are per-frame heatmaps — no temporal subsampling needed.
+        The temporal dimension is preserved so it stays aligned with video frames.
+
+        Args:
+            data_tensor: shape (T, H, W).
+
+        Returns:
+            (1, T, H', W') — adds channel dimension for model compatibility.
+        """
+        if not self._attn_transform:
+            logger.warning("no attn transform provided")
+            return data_tensor
+        result = self._attn_transform(data_tensor)  # → (T, H', W')
+        return result.unsqueeze(0)  # (1, T, H', W')
 
     def __getitem__(self, index) -> dict[str, Any]:
+        chunk_info = self._index_map[index]
+        video_path = chunk_info["video_path"]
+        start = chunk_info["start_frame"]
+        end = chunk_info["end_frame"]
 
-        with open(self._labeled_videos[index]) as f:
-            file_info_dict = json.load(f)
+        # fps is cached in chunk_info from prepare_chunk_index — no disk I/O needed
+        fps_int = chunk_info["fps"]
 
-        # load video info from json file
-        video_name = file_info_dict["video_name"]
-        video_path = file_info_dict["video_path"]
+        # load only the specific frame range (cached per-worker to avoid repeated decode)
+        vframes: torch.Tensor = _read_video_cached(video_path, start, end, fps_int)
 
-        vframes, _, info = read_video(video_path, output_format="TCHW", pts_unit="sec")
+        chunk_frames = vframes[: end - start]  # (chunk_size, C, H, W)
 
-        label = file_info_dict["label"]
-        disease = file_info_dict["disease"]
-        # gait_cycle_index = file_info_dict["gait_cycle_index"]
-        # bbox_none_index = file_info_dict["none_index"]
-        # bbox = file_info_dict["bbox"]
+        label = chunk_info["label"]
+        disease = chunk_info["disease"]
+        video_name = chunk_info["video_name"]
 
-        attn_map = self.attn_map(
-            video_name=video_name,
-            video_path=video_path,
-            disease=disease,
-            vframes=vframes,
-        )
+        # attention map — use the new generate_attention_map_chunk to avoid full-video iteration
+        if hasattr(self, "attn_map"):
+            skeleton = self.attn_map.find_skeleton(video_name)
+            doctor_attn, mapped_keypoint = self.attn_map.find_doctor_res(video_name)
+            keypoint = skeleton[0]["keypoint"]
+            confidence_score = skeleton[0]["keypoint_score"]
 
-        # transform the video frames
-        transformed_vframes = self.move_transform(vframes, int(info["video_fps"]))
-        transformed_attn_map = self.move_transform(attn_map, int(info["video_fps"]))
+            chunk_attn = self.attn_map.generate_attention_map_chunk(
+                vframes=chunk_frames,
+                mapped_keypoint=mapped_keypoint,
+                keypoint=keypoint,
+                confidence_score=confidence_score,
+                start_frame=start,
+            )
+        else:
+            # fallback: empty attention map — keep (T_chunk, H, W) with proper spatial dims
+            h = vframes.shape[-2] if vframes.numel() > 0 else 224
+            w = vframes.shape[-1] if vframes.numel() > 0 else 224
+            chunk_attn = torch.zeros(self._chunk_size, h, w, dtype=torch.float32)
 
-        sample_info_dict = {
-            "video": transformed_vframes,
-            "label": label,
-            "attn_map": transformed_attn_map,
+        transformed_vframes = self._apply_video_transform(
+            chunk_frames
+        )  # (C, chunk_size, H, W)
+        transformed_attn_map = self._apply_attn_transform(
+            chunk_attn
+        )  # (1, chunk_size, H, W)
+
+        return {
+            "video": transformed_vframes,  # [C, chunk_size, H, W]
+            "label": label,  # int
+            "attn_map": transformed_attn_map,  # [1, chunk_size, H, W]
             "disease": disease,
             "video_name": video_name,
             "video_index": index,
-            # "bbox_none_index": bbox_none_index,
+            "start_frame": start,
+            "end_frame": end,
         }
-
-        # logger.info(f"the video name is {video_name}")
-        # logger.info(f"the batch size is {transformed_vframes.shape}")
-
-        return sample_info_dict
 
 
 def whole_video_dataset(
     experiment: str,
     transform: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
+    attn_transform: Optional[Any] = None,
     dataset_idx: list = [],
     doctor_res_path: str = "",
     skeleton_path: str = "",
     clip_duration: int = 1,
+    chunk_size: int = 8,
 ) -> LabeledGaitVideoDataset:
     dataset = LabeledGaitVideoDataset(
         experiment=experiment,
         transform=transform,
+        attn_transform=attn_transform,
         labeled_video_paths=dataset_idx,
         doctor_res_path=doctor_res_path,
         skeleton_path=skeleton_path,
+        chunk_size=chunk_size,
     )
 
     return dataset

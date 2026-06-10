@@ -74,11 +74,13 @@ class PoseAttnFusion(nn.Module):
         gate_init_bias: float = 2.0,
         gate_temp: float = 1.0,
         per_joint_gate: bool = False,  # P2: support per-joint fusion gates
+        chunk_size: int = 8,          # temporal dim from dataloader — used to disambiguate attn dims
     ) -> None:
         super().__init__()
         self.use_residual = use_residual
         self.gate_temp = gate_temp
         self.per_joint_gate = per_joint_gate
+        self._chunk_size: int = int(chunk_size)
 
         self.rgb_conv  = nn.Conv3d(in_channels, in_channels, 3, padding=1, bias=False)
         self.attn_conv = nn.Conv3d(context_channels, in_channels, 1, bias=False)
@@ -109,8 +111,56 @@ class PoseAttnFusion(nn.Module):
     def forward(self, x: torch.Tensor, attn: torch.Tensor) -> torch.Tensor:
         # Align dtype/device & THW
         attn = attn.to(dtype=x.dtype, device=x.device)
+
+        # Normalize accidental extra singleton dimensions so we always work with
+        # (N, C_ctx, T, H, W).
+        while attn.dim() > 5:
+            squeezed = False
+            for dim in range(1, attn.dim() - 3):
+                if attn.size(dim) == 1:
+                    attn = attn.squeeze(dim)
+                    squeezed = True
+                    break
+            if not squeezed:
+                raise ValueError(
+                    f"Expected attn to be 5D after squeezing singleton dims, got shape {tuple(attn.shape)}"
+                )
+
+        # Ensure attn has 5D (N, C_ctx, T_attn, H, W) for trilinear interpolation.
+        # When B == chunk_size pytorchvideo tensor becomes ambiguous — batch and temporal
+        # have the same value so F.interpolate can't tell which is spatial. We ensure
+        # context_channels > max(B, chunk_size) at data prep time; here we just validate
+        # that attn has a distinct enough C_attn to disambiguate from any potential C_out
+        # in x.shape[-3:].
+        if attn.dim() == 4:
+            batch_size: int = int(attn.shape[0])
+            context_channels: int = int(attn.shape[1])
+            if context_channels == 1 and batch_size <= self._chunk_size:
+                # B >= chunk_size (at minimum). Pad so C_attn > max(B, T_x) to ensure
+                # no collision with any layer's C_out in x.shape[-3:].
+                pad = torch.zeros(batch_size, 1, *attn.shape[2:], device=attn.device, dtype=attn.dtype)
+                attn = torch.cat([attn, pad], dim=1)
+
         if x.shape[-3:] != attn.shape[-3:]:
-            attn = F.interpolate(attn, size=x.shape[-3:], mode="trilinear", align_corners=False)
+            Tx, Hx, Wx = x.shape[-3:]  # target spatial-temporal size
+            Tattn = attn.size(-3)
+            # Handle temporal dimension mismatch.
+            # Trilinear interpolation fails when the input temporal dim is 1 (can't interpolate
+            # across a single spatial location). We repeat the singleton frame to match Tx,
+            # then let trilinear handle the remaining H/W resize.
+            if Tattn == 1:
+                attn = attn.repeat(1, 1, Tx, 1, 1)
+                Tattn = Tx  # update for subsequent check below
+
+            # After handling singleton temporal, interpolate remaining mismatch (H/W or T if both > 1).
+            if x.shape[-3:] != attn.shape[-3:]:
+                size = list(x.shape[-3:])
+                # Only set target T if source T is valid (>1), otherwise keep as-is.
+                if Tattn == 1:
+                    size[-3] = 1
+                elif Tx != 1 and Tattn != Tx:
+                    size[-3] = min(Tx, Tattn)  # avoid growing singleton beyond its original range
+                attn = F.interpolate(attn, size=size, mode="trilinear", align_corners=False)
 
         N = x.size(0)
 
@@ -315,6 +365,27 @@ class PoseFusionRes3DCNN(nn.Module):
         self.per_joint_gate = bool(m.get("per_joint_gate", False))
         self.skeleton_topology_aware = bool(m.get("skeleton_topology_aware", False))
 
+        # Chunk size from dataloader (uniform_temporal_subsample_num).
+        # We need this to detect collisions between batch/temporal and C_out in fusion layers.
+        # pytorchvideo returns inherently ambiguous tensors (N, C, T, H, W) — when B == chunk_size,
+        # batch and temporal both have value V. F.interpolate resizes all spatial dims uniformly so
+        # we MUST ensure chunk_size != any potential C_out in fusion layers.
+        chunk_size = getattr(m, "uniform_temporal_subsample_num", None)
+        if chunk_size is not None:
+            self._chunk_size = int(chunk_size)
+            # Check for collisions with DIM_LIST (used as potential C_out in fusion code)
+            dim_set = set(DIM_LIST)
+            colliding_dims = [d for d in dim_set if d == self._chunk_size]
+            if colliding_dims:
+                raise ValueError(
+                    f"Collision detected: uniform_temporal_subsample_num={self._chunk_size} "
+                    f"collides with fusion layer C_out values {colliding_dims}. "
+                    f"When B == chunk_size, pytorchvideo tensor (B=C_out=T_x) is inherently ambiguous. "
+                    f"Please set uniform_temporal_subsample_num to a value not in {dim_set}."
+                )
+        else:
+            self._chunk_size = getattr(hparams.train, "uniform_temporal_subsample_num", 8)
+
         # Build backbone with Kinetics-400 pretrained weights (modified first layer + head)
         self.model = init_slow_r50(self.ckpt, self.num_classes)
         self.blocks = nn.ModuleList([self.model.blocks[i] for i in range(6)])
@@ -361,6 +432,8 @@ class PoseFusionRes3DCNN(nn.Module):
 
         x = video
         for idx in range(5):  # 0..4 stages
+            # First run the corresponding backbone stage so x channel dims match
+            # the fusion module configured for this stage.
             x = self.blocks[idx](x)
 
             # side prediction logits

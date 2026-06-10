@@ -32,6 +32,7 @@ from torchvision.transforms import (
     Resize,
 )
 
+import logging
 from typing import Any, Callable, Dict, Optional
 from pytorch_lightning import LightningDataModule
 
@@ -42,13 +43,27 @@ from pytorchvideo.data import make_clip_sampler
 from pytorchvideo.data.labeled_video_dataset import labeled_video_dataset
 
 from project.dataloader.whole_video_dataset import whole_video_dataset
-from project.dataloader.batch_video_dataset import batch_video_dataset
 
 from project.dataloader.utils import (
     Div255,
     UniformTemporalSubsample,
     ApplyTransformToKey,
 )
+
+
+logger = logging.getLogger(__name__)
+
+
+# spatial-only transform for attention maps (no temporal subsample)
+def _make_attn_transform(img_size: int):
+    """Attention map transform: only normalize and resize, preserve temporal dimension."""
+    return Compose(
+        [
+            Div255(),
+            Resize(size=[img_size, img_size]),
+        ]
+    )
+
 
 disease_to_num_mapping_Dict: Dict = {
     2: {"ASD": 0, "non-ASD": 1},
@@ -141,6 +156,9 @@ class WalkDataModule(LightningDataModule):
         """
 
         if self._attn_map:
+            # spatial-only transform for attention maps (no temporal subsample)
+            self._attn_transform = _make_attn_transform(self._img_size)
+
             # train dataset
             self.train_gait_dataset = whole_video_dataset(
                 experiment=self._experiment,
@@ -148,9 +166,11 @@ class WalkDataModule(LightningDataModule):
                     0
                 ],  # train mapped path, include gait cycle index.
                 transform=self.mapping_transform,
+                attn_transform=self._attn_transform,
                 skeleton_path=self._skeleton_path,
                 doctor_res_path=self._doctor_res_path,
                 clip_duration=self._clip_duration,
+                chunk_size=self.uniform_temporal_subsample_num,
             )
 
             # val dataset
@@ -160,9 +180,11 @@ class WalkDataModule(LightningDataModule):
                     1
                 ],  # val mapped path, include gait cycle index.
                 transform=self.mapping_transform,
+                attn_transform=self._attn_transform,
                 doctor_res_path=self._doctor_res_path,
                 skeleton_path=self._skeleton_path,
                 clip_duration=self._clip_duration,
+                chunk_size=self.uniform_temporal_subsample_num,
             )
 
             # test dataset
@@ -172,9 +194,11 @@ class WalkDataModule(LightningDataModule):
                     1
                 ],  # val mapped path, include gait cycle index.
                 transform=self.mapping_transform,
+                attn_transform=self._attn_transform,
                 doctor_res_path=self._doctor_res_path,
                 skeleton_path=self._skeleton_path,
                 clip_duration=self._clip_duration,
+                chunk_size=self.uniform_temporal_subsample_num,
             )
 
         else:
@@ -202,10 +226,8 @@ class WalkDataModule(LightningDataModule):
     def collate_fn(self, batch):
         """this function process the batch data, and return the batch data.
 
-        Args:
-            batch (list): the batch from the dataset.
-            The batch include the one patient info from the json file.
-            Here we only cat the one patient video tensor, and label tensor.
+        Each item in batch corresponds to one chunk (one independent sample) with a single label.
+        No longer repeats labels across clips within a video.
 
         Returns:
             dict: {video: torch.tensor, label: torch.tensor, info: list}
@@ -215,39 +237,27 @@ class WalkDataModule(LightningDataModule):
         batch_video = []
         batch_attn_map = []
 
-        # * mapping label
         for i in batch:
-            # logging.info(i['video'].shape)
-            gait_num, *_ = i["video"].shape
             disease = i["disease"]
 
             batch_video.append(i["video"])
             batch_attn_map.append(i["attn_map"])
 
-            for _ in range(gait_num):
-                if disease in disease_to_num_mapping_Dict[self._class_num].keys():
-                    assert (
-                        disease_to_num_mapping_Dict[self._class_num][disease]
-                        == i["label"]
-                    ), "The disease label mapping is not correct!"
+            if disease in disease_to_num_mapping_Dict[self._class_num].keys():
+                mapped_label = disease_to_num_mapping_Dict[self._class_num][disease]
+                assert mapped_label == i["label"], (
+                    "The disease label mapping is not correct!"
+                )
+            else:
+                # if the disease not in the mapping dict, set to non-ASD.
+                mapped_label = disease_to_num_mapping_Dict[self._class_num]["non-ASD"]
 
-                    batch_label.append(
-                        disease_to_num_mapping_Dict[self._class_num][disease]
-                    )
-                else:
-                    # * if the disease not in the mapping dict, then set the label to non-ASD.
-                    batch_label.append(
-                        disease_to_num_mapping_Dict[self._class_num]["non-ASD"]
-                    )
+            batch_label.append(mapped_label)
 
-        # video, b, c, t, h, w, which include the video frame
-        # attn_map, b, c, t, h, w, which include the attn map
-        # label, b, which include the label of the video
-        # sample info, the raw sample info
         return {
-            "video": torch.cat(batch_video, dim=0),
+            "video": torch.stack(batch_video, dim=0),
             "label": torch.tensor(batch_label),
-            "attn_map": torch.cat(batch_attn_map, dim=0),
+            "attn_map": torch.stack(batch_attn_map, dim=0),
             "info": batch,
         }
 

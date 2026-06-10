@@ -38,7 +38,7 @@ data:
   img_size: 224
   sampling: "over" # over, under, none
 
-  batch_size: 1 # this used for default method, without gait cycle defined method.
+  batch_size: 16 # this used for default method, without gait cycle defined method.
 
 model:
   backbone: 3dcnn # choices=[3dcnn, 2dcnn, cnn_lstm, two_stream], help='the backbone of the model'
@@ -57,7 +57,7 @@ train:
 
   # used for val
   clip_duration: 1 # clip duration for the video
-  uniform_temporal_subsample_num: 8 # num frame from the clip duration, f or define one gait cycle, we need use whole frames.
+  uniform_temporal_subsample_num: 16 # num frame from the clip duration, f or define one gait cycle, we need use whole frames.
 
   attn_map: True # if use the attention map
 

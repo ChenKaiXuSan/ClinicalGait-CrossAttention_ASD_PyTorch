@@ -85,6 +85,35 @@ class PoseAttnTrainer(LightningModule):
     # ------------------- small helpers -------------------
     @staticmethod
     def _resize_3d(x: torch.Tensor, size: tuple[int, int, int]) -> torch.Tensor:
+        """Resize tensor to (B, C, T, H, W) before trilinear interpolation.
+
+        The data pipeline may occasionally produce extra singleton dimensions
+        (e.g. Bx1xTx1xHxW). Normalize them here to avoid runtime shape errors.
+        """
+        # Squeeze accidental singleton dims except batch axis.
+        while x.dim() > 5:
+            squeezed = False
+            for dim in range(1, x.dim()):
+                if x.size(dim) == 1:
+                    x = x.squeeze(dim)
+                    squeezed = True
+                    break
+            if not squeezed:
+                raise ValueError(
+                    f"Cannot normalize doctor_hm to 5D, got shape {tuple(x.shape)}"
+                )
+
+        if x.dim() == 3:
+            # (B, H, W) -> (B, 1, 1, H, W)
+            x = x.unsqueeze(1).unsqueeze(2)
+        elif x.dim() == 4:
+            # Ambiguous 4D, prefer (B, T, H, W) -> (B, 1, T, H, W)
+            x = x.unsqueeze(1)
+        elif x.dim() != 5:
+            raise ValueError(
+                f"Expected doctor_hm with 3/4/5 dims, got shape {tuple(x.shape)}"
+            )
+
         return F.interpolate(x, size=size, mode="trilinear", align_corners=False)
 
     @staticmethod
@@ -221,20 +250,16 @@ class PoseAttnTrainer(LightningModule):
             },
             on_step=True,
             on_epoch=True,
+            prog_bar=True,
             batch_size=B,
         )
 
-        logger.info(
-            f"train loss: {loss_total.item():.4f} "
-            f"(cls {attn_loss['cls'].item():.4f} | attn {attn_loss['attn'].item():.4f} | "
-            f"bg {attn_loss['bg'].item():.4f} | tmp {attn_loss['tmp'].item():.4f})"
-        )
         return loss_total
 
     @torch.no_grad()
     def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int):
-        video: torch.Tensor = batch["video"]
-        attn_map: torch.Tensor = batch["attn_map"]
+        video: torch.Tensor = batch["video"]  # (B,C,T,H,W)
+        attn_map: torch.Tensor = batch["attn_map"]  # (B,attn_channels,T,H,W) in [0,1]
         labels: torch.Tensor = batch["label"].long()
         B = video.size(0)
 
@@ -291,14 +316,10 @@ class PoseAttnTrainer(LightningModule):
             },
             on_step=False,
             on_epoch=True,
+            prog_bar=True,
             batch_size=B,
         )
 
-        logger.info(
-            f"val loss: {loss_total.item():.4f} "
-            f"(cls {attn_loss['cls'].item():.4f} | attn {attn_loss['attn'].item():.4f} | "
-            f"bg {attn_loss['bg'].item():.4f} | tmp {attn_loss['tmp'].item():.4f})"
-        )
         return {"val_loss": loss_total}
 
     # ------------------- testing -------------------
@@ -339,6 +360,7 @@ class PoseAttnTrainer(LightningModule):
             },
             on_step=False,
             on_epoch=True,
+            prog_bar=True,
             batch_size=B,
         )
 
@@ -348,8 +370,10 @@ class PoseAttnTrainer(LightningModule):
         # save feature maps for CAM visualization
         # * only dump for first 10 batches to save space
         fold = (
-            getattr(self.logger, "root_dir", "fold").split("/")[-1]
-        ) if self.logger else "fold"
+            (getattr(self.logger, "root_dir", "fold").split("/")[-1])
+            if self.logger
+            else "fold"
+        )
 
         if batch_idx < 10:
             dump_all_feature_maps(
@@ -357,9 +381,15 @@ class PoseAttnTrainer(LightningModule):
                 video=video,
                 video_info=batch.get("info", None),
                 attn_map=attn_map,
-                save_root=self.save_root + f"/test_all_feature_maps/{fold}/batch_{batch_idx}",
+                save_root=self.save_root
+                + f"/test_all_feature_maps/{fold}/batch_{batch_idx}",
                 include_types=(torch.nn.Conv3d, torch.nn.Linear),
-                include_name_contains=("conv_c", "rgb_conv", "attn_conv", "gate_conv2"),  # 只保存部分层
+                include_name_contains=(
+                    "conv_c",
+                    "rgb_conv",
+                    "attn_conv",
+                    "gate_conv2",
+                ),  # 只保存部分层
                 exclude_name_contains=("proj", "head"),  # 排除分类 head
                 resize_to=(self.img_size, self.img_size),
                 resize_mode="bilinear",
