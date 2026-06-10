@@ -1,4 +1,39 @@
 #!/bin/bash
+#PBS -A SKIING                        # ✅ 项目名（必须修改）
+#PBS -q gpu                         # ✅ 队列名（gpu / debug / gen_S）
+#PBS -b 1                             # GPU 数量
+#PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
+#PBS -N pose_gated_no_sidehead_train  # 🏷 Ablation A3: No Side Head
+#PBS -t 0-4                           # job array 0-4 (5 folds, 遍历融合层)
+#PBS -o logs/pegasus/train_pose_gated_noside_out_${PBS_SUBREQNO}.log
+#PBS -e logs/pegasus/train_pose_gated_noside_err_${PBS_SUBREQNO}.log
+
+cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
+
+mkdir -p logs/pegasus/ checkpoints/
+
+source pegasus/setup_env.sh
+
+echo "Current working directory: $(pwd)"
+echo "PBS job id: $PBS_JOBID, sub-request: $PBS_SUBREQNO (fusion layer index)"
+echo "Total CPU cores: $(nproc), workers = $(( $(nproc) / 3 ))"
+
+root_path=/work/SKIING/chenkaixu/data/asd_dataset
+
+python -m project.train data.root_path=${root_path} \
+    model.fuse_method=pose_atn train.fold=5 \
+    train.gpu=1 \
+    train.experiment=pose_atn_noside_single_${PBS_SUBREQNO} \
+    data.batch_size=32 \
+    data.num_workers=$(( $(nproc) / 3 )) \
+    model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
+    model.use_side_heads=False
+
+
+# Script notes
+# Ablation A3: PoseGated WITHOUT side heads → no intermediate heatmap supervision
+
+# Experiment notes
 ###############################################################################
 # 实验编号: Ablation A3 — No Side Head (Table X Row A3a)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -30,32 +65,3 @@
 #   Table X Row A3a — "PoseGated without side head supervision" (Ablation A3)
 #   → 预期：accuracy 下降（side head 提供了额外的监督信号，尤其在小数据集上）
 ###############################################################################
-
-#PBS -A SKIING                        # ✅ 项目名（必须修改）
-#PBS -q gpu                         # ✅ 队列名（gpu / debug / gen_S）
-#PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
-#PBS -N pose_gated_no_sidehead_train  # 🏷 Ablation A3: No Side Head
-#PBS -t 0-4                           # job array 0-4 (5 folds, 遍历融合层)
-#PBS -o logs/pegasus/train_pose_gated_noside_out_${PBS_SUBREQNO}.log
-#PBS -e logs/pegasus/train_pose_gated_noside_err_${PBS_SUBREQNO}.log
-
-cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
-
-mkdir -p logs/pegasus/ checkpoints/
-
-source pegasus/setup_env.sh
-
-echo "Current working directory: $(pwd)"
-echo "PBS job id: $PBS_JOBID, sub-request: $PBS_SUBREQNO (fusion layer index)"
-echo "Total CPU cores: $(nproc), workers = $(( $(nproc) / 3 ))"
-
-root_path=/work/SKIING/chenkaixu/data/asd_dataset
-
-# Ablation A3: PoseGated WITHOUT side heads → no intermediate heatmap supervision
-python -m project.train data.root_path=${root_path} \
-    model.fuse_method=pose_atn train.fold=5 \
-    train.experiment=pose_atn_noside_single_${PBS_SUBREQNO} \
-    data.batch_size=64 \
-    data.num_workers=$(( $(nproc) / 3 )) \
-    model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
-    model.use_side_heads=False

@@ -37,3 +37,12 @@ hash -r
 
 echo "Python version: $(python --version)"
 echo "Python executable: $(which python)"
+echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<unset>}"
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+    nvidia-smi
+else
+    echo "nvidia-smi: not found"
+fi
+
+python -c 'import torch; print("torch:", torch.__version__); print("torch cuda available:", torch.cuda.is_available()); print("torch cuda device count:", torch.cuda.device_count())'

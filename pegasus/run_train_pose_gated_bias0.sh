@@ -1,4 +1,40 @@
 #!/bin/bash
+#PBS -A SKIING                        # ✅ 项目名（必须修改）
+#PBS -q gpu                         # ✅ 队列名（gpu / debug / gen_S）
+#PBS -b 1                             # GPU 数量
+#PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
+#PBS -N pose_gated_bias0_train        # 🏷 Ablation A2a: gate_init_bias = 0.0
+#PBS -t 0-4                           # job array 0-4 (5 folds, 遍历融合层)
+#PBS -o logs/pegasus/train_pose_gated_bias0_out_${PBS_SUBREQNO}.log
+#PBS -e logs/pegasus/train_pose_gated_bias0_err_${PBS_SUBREQNO}.log
+
+cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
+
+mkdir -p logs/pegasus/ checkpoints/
+
+source pegasus/setup_env.sh
+
+echo "Current working directory: $(pwd)"
+echo "PBS job id: $PBS_JOBID, sub-request: $PBS_SUBREQNO (fusion layer index)"
+echo "gate_init_bias = 0.0 (neutral init: g≈0.5 → equal RGB/skeleton trust)"
+echo "Total CPU cores: $(nproc), workers = $(( $(nproc) / 3 ))"
+
+root_path=/work/SKIING/chenkaixu/data/asd_dataset
+
+python -m project.train data.root_path=${root_path} \
+    model.fuse_method=pose_atn train.fold=5 \
+    train.gpu=1 \
+    train.experiment=pose_atn_bias0_single_${PBS_SUBREQNO} \
+    data.batch_size=32 \
+    data.num_workers=$(( $(nproc) / 3 )) \
+    model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
+    model.gate_init_bias=0.0
+
+
+# Script notes
+# Ablation A2a: PoseGated gate init bias = 0.0 (neutral, equal trust in both modalities)
+
+# Experiment notes
 ###############################################################################
 # 实验编号: Ablation A2 — Gate Init Bias = 0.0 (Table X Row A2a)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -32,33 +68,3 @@
 #   Figure W — line chart: x=gates_init_bias, y=accuracy → 看曲线是否平坦或有无最优值
 #   → 预期：bias=0.0 和 bias=2.0 最终接近（训练后 gate self-adjusts），但收敛速度不同
 ###############################################################################
-
-#PBS -A SKIING                        # ✅ 项目名（必须修改）
-#PBS -q gpu                         # ✅ 队列名（gpu / debug / gen_S）
-#PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
-#PBS -N pose_gated_bias0_train        # 🏷 Ablation A2a: gate_init_bias = 0.0
-#PBS -t 0-4                           # job array 0-4 (5 folds, 遍历融合层)
-#PBS -o logs/pegasus/train_pose_gated_bias0_out_${PBS_SUBREQNO}.log
-#PBS -e logs/pegasus/train_pose_gated_bias0_err_${PBS_SUBREQNO}.log
-
-cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
-
-mkdir -p logs/pegasus/ checkpoints/
-
-source pegasus/setup_env.sh
-
-echo "Current working directory: $(pwd)"
-echo "PBS job id: $PBS_JOBID, sub-request: $PBS_SUBREQNO (fusion layer index)"
-echo "gate_init_bias = 0.0 (neutral init: g≈0.5 → equal RGB/skeleton trust)"
-echo "Total CPU cores: $(nproc), workers = $(( $(nproc) / 3 ))"
-
-root_path=/work/SKIING/chenkaixu/data/asd_dataset
-
-# Ablation A2a: PoseGated gate init bias = 0.0 (neutral, equal trust in both modalities)
-python -m project.train data.root_path=${root_path} \
-    model.fuse_method=pose_atn train.fold=5 \
-    train.experiment=pose_atn_bias0_single_${PBS_SUBREQNO} \
-    data.batch_size=64 \
-    data.num_workers=$(( $(nproc) / 3 )) \
-    model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
-    model.gate_init_bias=0.0

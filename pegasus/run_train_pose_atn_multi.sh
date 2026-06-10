@@ -1,4 +1,38 @@
 #!/bin/bash
+#PBS -A SKIING                        # ✅ 项目名（必须修改）
+#PBS -q gpu                         # ✅ 队列名（gpu / debug / gen_S）
+#PBS -b 1                             # GPU 数量
+#PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
+#PBS -N pose_atn_multi_train          # 🏷 作业名称 — PoseGated Multi Layer
+#PBS -t 0-4                           # job array 0-4 (多层层叠 fusion)
+#PBS -o logs/pegasus/train_pose_atn_multi_out_${PBS_SUBREQNO}.log
+#PBS -e logs/pegasus/train_pose_atn_multi_err_${PBS_SUBREQNO}.log
+
+cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
+
+mkdir -p logs/pegasus/ checkpoints/
+
+source pegasus/setup_env.sh
+
+echo "Current working directory: $(pwd)"
+echo "PBS job id: $PBS_JOBID, sub-request: $PBS_SUBREQNO (multi fusion layers prefix length)"
+echo "Total CPU cores: $(nproc), workers = $(( $(nproc) / 3 ))"
+
+root_path=/work/SKIING/chenkaixu/data/asd_dataset
+
+python -m project.train data.root_path=${root_path} \
+    model.fuse_method=pose_atn train.fold=5 \
+    train.gpu=1 \
+    train.experiment=pose_atn_multi_${PBS_SUBREQNO} \
+    data.batch_size=32 \
+    data.num_workers=$(( $(nproc) / 3 )) \
+    model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=multi
+
+
+# Script notes
+# Ablation A5 multi: PoseGated with {0..${PBS_SUBREQNO}} layers fused
+
+# Experiment notes
 ###############################################################################
 # 实验编号: Ablation A5 — PoseGated Multi Layers (Table X Row 9)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -31,31 +65,3 @@
 #   Table X Row A5_multi — "PoseGated with multi-layer fusion" (Ablation A5)
 #   Figure Z — bar chart: x=fusion_layers count, y=accuracy → 证明越多越好或存在拐点
 ###############################################################################
-
-#PBS -A SKIING                        # ✅ 项目名（必须修改）
-#PBS -q gpu                         # ✅ 队列名（gpu / debug / gen_S）
-#PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
-#PBS -N pose_atn_multi_train          # 🏷 作业名称 — PoseGated Multi Layer
-#PBS -t 0-4                           # job array 0-4 (多层层叠 fusion)
-#PBS -o logs/pegasus/train_pose_atn_multi_out_${PBS_SUBREQNO}.log
-#PBS -e logs/pegasus/train_pose_atn_multi_err_${PBS_SUBREQNO}.log
-
-cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
-
-mkdir -p logs/pegasus/ checkpoints/
-
-source pegasus/setup_env.sh
-
-echo "Current working directory: $(pwd)"
-echo "PBS job id: $PBS_JOBID, sub-request: $PBS_SUBREQNO (multi fusion layers prefix length)"
-echo "Total CPU cores: $(nproc), workers = $(( $(nproc) / 3 ))"
-
-root_path=/work/SKIING/chenkaixu/data/asd_dataset
-
-# Ablation A5 multi: PoseGated with {0..${PBS_SUBREQNO}} layers fused
-python -m project.train data.root_path=${root_path} \
-    model.fuse_method=pose_atn train.fold=5 \
-    train.experiment=pose_atn_multi_${PBS_SUBREQNO} \
-    data.batch_size=64 \
-    data.num_workers=$(( $(nproc) / 3 )) \
-    model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=multi
