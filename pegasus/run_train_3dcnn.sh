@@ -24,7 +24,6 @@ python -m project.train data.root_path=${root_path} \
     model.fuse_method=none train.fold=5 \
     train.gpu=1 \
     train.experiment=baseline_rgb_3dcnn \
-    data.batch_size=32 \
     data.num_workers=$(( $(nproc) / 3 ))
 
 

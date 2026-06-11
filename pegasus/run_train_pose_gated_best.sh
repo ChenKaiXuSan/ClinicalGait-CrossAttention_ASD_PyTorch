@@ -25,7 +25,6 @@ python -m project.train data.root_path=${root_path} \
     model.fuse_method=pose_atn train.fold=5 \
     train.gpu=1 \
     train.experiment=pose_gated_best_multi_${PBS_SUBREQNO} \
-    data.batch_size=32 \
     data.num_workers=$(( $(nproc) / 3 )) \
     model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=multi
 
