@@ -27,6 +27,7 @@ import hydra
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import (
+    EarlyStopping,
     LearningRateMonitor,
     ModelCheckpoint,
     RichModelSummary,
@@ -97,7 +98,7 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
     )
 
     # some callbacks
-    rich_model_summary = RichModelSummary(max_depth=2)
+    rich_model_summary = RichModelSummary(max_depth=3)
 
     # define the checkpoint becavier.
     model_check_point = ModelCheckpoint(
@@ -114,6 +115,14 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
 
+    early_stopping = EarlyStopping(
+        monitor="val/video_acc",
+        mode="max",
+        patience=hparams.train.get("early_stop_patience", 10),
+        min_delta=hparams.train.get("early_stop_min_delta", 0.0),
+        verbose=True,
+    )
+
     trainer = Trainer(
         devices=int(hparams.train.gpu),
         accelerator="gpu",
@@ -124,6 +133,7 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         callbacks=[
             rich_model_summary,
             model_check_point,
+            early_stopping,
             lr_monitor,
         ],
     )

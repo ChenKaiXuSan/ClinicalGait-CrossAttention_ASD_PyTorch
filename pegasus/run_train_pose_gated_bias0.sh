@@ -4,9 +4,8 @@
 #PBS -b 1                             # GPU 数量
 #PBS -l elapstim_req=24:00:00          # ⏱ 运行时间限制（最多 24 小时）
 #PBS -N pose_gated_bias0_train        # 🏷 Ablation A2a: gate_init_bias = 0.0
-#PBS -t 0-4                           # job array 0-4 (5 folds, 遍历融合层)
-#PBS -o logs/pegasus/train_pose_gated_bias0_out_${PBS_SUBREQNO}.log
-#PBS -e logs/pegasus/train_pose_gated_bias0_err_${PBS_SUBREQNO}.log
+#PBS -o logs/pegasus/train_pose_gated_bias0_out.log
+#PBS -e logs/pegasus/train_pose_gated_bias0_err.log
 
 cd /work/SKIING/chenkaixu/code/ClinicalGait-CrossAttention_ASD_PyTorch
 
@@ -15,7 +14,8 @@ mkdir -p logs/pegasus/ checkpoints/
 source pegasus/setup_env.sh
 
 echo "Current working directory: $(pwd)"
-echo "PBS job id: $PBS_JOBID, sub-request: $PBS_SUBREQNO (fusion layer index)"
+echo "PBS job id: $PBS_JOBID"
+echo "fusion setting = multi, fusion_layers = 4 ([0,1,2,3,4])"
 echo "gate_init_bias = 0.0 (neutral init: g≈0.5 → equal RGB/skeleton trust)"
 echo "Total CPU cores: $(nproc), workers = $(( $(nproc) / 3 ))"
 
@@ -24,9 +24,9 @@ root_path=/work/SKIING/chenkaixu/data/asd_dataset
 python -m project.train data.root_path=${root_path} \
     model.fuse_method=pose_atn train.fold=5 \
     train.gpu=1 \
-    train.experiment=pose_atn_bias0_single_${PBS_SUBREQNO} \
+    train.experiment=pose_atn_bias0_multi_4 \
     data.num_workers=$(( $(nproc) / 3 )) \
-    model.fusion_layers=${PBS_SUBREQNO} model.ablation_study=single \
+    model.fusion_layers=4 model.ablation_study=multi \
     model.gate_init_bias=0.0
 
 
@@ -55,8 +55,8 @@ python -m project.train data.root_path=${root_path} \
 #
 # 消融矩阵:
 #   fuse_method      = pose_atn                    ← PoseGated 融合
-#   ablation_study   = single                      ← 单点 fusion
-#   fusion_layers    = ${PBS_SUBREQNO}             ← 遍历 0~4
+#   ablation_study   = multi                       ← 多层 prefix fusion
+#   fusion_layers    = 4                           ← [0,1,2,3,4] 全层融合
 #   use_side_heads   = True                        ← side head 保持开启
 #   loss_selection   = ["cls","attn_loss","bg","tmp"]
 #   gate_init_bias   = 0.0       ← ★ THIS IS THE ABLATION ★

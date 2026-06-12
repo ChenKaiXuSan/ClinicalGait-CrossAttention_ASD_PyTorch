@@ -11,11 +11,11 @@
 | `run_train_pose_atn_single.sh` | PoseGated 单层注入 | `model.fuse_method=pose_atn`, `model.ablation_study=single`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4` = 只在对应 block 融合 | 可跑 |
 | `run_train_pose_atn_multi.sh` | PoseGated 多层累加注入 | `model.fuse_method=pose_atn`, `model.ablation_study=multi`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4` = `[0]` 到 `[0,1,2,3,4]` | 可跑 |
 | `run_train_pose_gated_best.sh` | PoseGated full / final config | `model.fuse_method=pose_atn`, `model.ablation_study=multi`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4`，其中 `4` 是 full `[0..4]` | 名字是 best，但实际仍扫 multi prefix |
-| `run_train_pose_gated_bias0.sh` | gate bias 消融 | 上面 single 设置 + `model.gate_init_bias=0.0` | `0..4` = single layer index | 可跑 |
-| `run_train_pose_gated_bias_neg1.sh` | gate bias 消融 | 上面 single 设置 + `model.gate_init_bias=-1.0` | `0..4` = single layer index | 可跑 |
-| `run_train_pose_gated_nosidehead.sh` | side head 消融 | 上面 single 设置 + `model.use_side_heads=False` | `0..4` = single layer index | 可跑 |
-| `run_train_pose_gated_nobgloss.sh` | loss 消融 | 上面 single 设置 + `loss.selection=["cls","attn_loss","tmp"]` | `0..4` = single layer index | 可跑 |
-| `run_train_pose_gated_notmploss.sh` | loss 消融 | 上面 single 设置 + `loss.selection=["cls","attn_loss","bg"]` | `0..4` = single layer index | 可跑 |
+| `run_train_pose_gated_bias0.sh` | gate bias 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `model.gate_init_bias=0.0` | 无 array，固定 full `[0..4]` | 可跑 |
+| `run_train_pose_gated_bias_neg1.sh` | gate bias 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `model.gate_init_bias=-1.0` | 无 array，固定 full `[0..4]` | 可跑 |
+| `run_train_pose_gated_nosidehead.sh` | side head 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `model.use_side_heads=False` | 无 array，固定 full `[0..4]` | 可跑 |
+| `run_train_pose_gated_nobgloss.sh` | loss 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `loss.selection=["cls","attn_loss","tmp"]` | 无 array，固定 full `[0..4]` | 可跑 |
+| `run_train_pose_gated_notmploss.sh` | loss 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `loss.selection=["cls","attn_loss","bg"]` | 无 array，固定 full `[0..4]` | 可跑 |
 | `run_train_se_atn_single.sh` | SE fusion 对比 | `model.fuse_method=se_atn`, `model.ablation_study=single`, `model.fusion_layers=$PBS_SUBREQNO` | 当前代码里 `fusion_layers=0..4` 映射为 prefix `[0]` 到 `[0..4]`，不是严格 single | 可跑，但脚本文案需要注意 |
 | `run_train_cross_atn.sh` | Cross-attention 对比 | `model.fuse_method=cross_atn`, `model.fusion_layers=$PBS_SUBREQNO` | 当前代码里 `fusion_layers=0..4` 映射为 prefix `[0]` 到 `[0..4]` | 当前工作区已删除；若恢复，还需要接回 `cross_atn` trainer，并建议加 `train.experiment=cross_atn_prefix_$PBS_SUBREQNO` |
 
@@ -36,13 +36,13 @@ logs/train/<train.experiment>/<date>/<time>/
 | `run_train_pose_atn_single.sh` | `pose_atn_single_${PBS_SUBREQNO}` |
 | `run_train_pose_atn_multi.sh` | `pose_atn_multi_${PBS_SUBREQNO}` |
 | `run_train_pose_gated_best.sh` | `pose_gated_best_multi_${PBS_SUBREQNO}` |
-| `run_train_pose_gated_bias0.sh` | `pose_atn_bias0_single_${PBS_SUBREQNO}` |
-| `run_train_pose_gated_bias_neg1.sh` | `pose_atn_bias_neg1_single_${PBS_SUBREQNO}` |
-| `run_train_pose_gated_nosidehead.sh` | `pose_atn_noside_single_${PBS_SUBREQNO}` |
-| `run_train_pose_gated_nobgloss.sh` | `pose_atn_nobg_single_${PBS_SUBREQNO}` |
-| `run_train_pose_gated_notmploss.sh` | `pose_atn_notmp_single_${PBS_SUBREQNO}` |
+| `run_train_pose_gated_bias0.sh` | `pose_atn_bias0_multi_4` |
+| `run_train_pose_gated_bias_neg1.sh` | `pose_atn_bias_neg1_multi_4` |
+| `run_train_pose_gated_nosidehead.sh` | `pose_atn_noside_multi_4` |
+| `run_train_pose_gated_nobgloss.sh` | `pose_atn_nobg_multi_4` |
+| `run_train_pose_gated_notmploss.sh` | `pose_atn_notmp_multi_4` |
 
-这样 `bias0`、`bias_neg1`、`noside`、`nobg`、`notmp` 不会再混在默认的 `3dcnn_attn_map_True_pose_atn_single_i` 目录名里。
+这样 `bias0`、`bias_neg1`、`noside`、`nobg`、`notmp` 不会再混在默认目录名里，并且都固定在 full multi `[0,1,2,3,4]` 上做组件消融。
 
 ## 三、关键代码映射
 
@@ -51,6 +51,7 @@ logs/train/<train.experiment>/<date>/<time>/
 ```yaml
 loss.selection: ["cls", "attn_loss", "bg", "tmp"]
 model.use_side_heads: True
+model.gate_init_bias: 2.0
 model.fuse_method: pose_atn
 model.fusion_layers: 5
 model.ablation_study: single
@@ -111,28 +112,28 @@ PoseGated 的 `fusion_layers` 映射在 `project/models/pose_fusion_res_3dcnn.py
 
 | Row | Method | 脚本 | 参数 |
 |---|---|---|---|
-| A2a | bias = 2.0 | `run_train_pose_atn_single.sh` | 默认 `model.gate_init_bias=2.0` |
-| A2b | bias = 0.0 | `run_train_pose_gated_bias0.sh` | `model.gate_init_bias=0.0` |
-| A2c | bias = -1.0 | `run_train_pose_gated_bias_neg1.sh` | `model.gate_init_bias=-1.0` |
+| A2a | bias = 2.0 | `run_train_pose_gated_best.sh` with `PBS_SUBREQNO=4` | full multi `[0..4]`, 默认 `model.gate_init_bias=2.0` |
+| A2b | bias = 0.0 | `run_train_pose_gated_bias0.sh` | full multi `[0..4]`, `model.gate_init_bias=0.0` |
+| A2c | bias = -1.0 | `run_train_pose_gated_bias_neg1.sh` | full multi `[0..4]`, `model.gate_init_bias=-1.0` |
 
-建议：这组三个脚本目前都在 `single` 模式下扫 `fusion_layers=0..4`。论文里最好固定同一个 fusion layer，或先用 A5 选出的 best layer/prefix 后再比较 bias。
+说明：这组三个实验固定 full multi `[0,1,2,3,4]`，只比较 gate 初始化。
 
 ### A3. Side Head
 
 | Row | Method | 脚本 | 参数 |
 |---|---|---|---|
-| A3a | with side head | `run_train_pose_atn_single.sh` | 默认 `model.use_side_heads=True` |
-| A3b | without side head | `run_train_pose_gated_nosidehead.sh` | `model.use_side_heads=False` |
+| A3a | with side head | `run_train_pose_gated_best.sh` with `PBS_SUBREQNO=4` | full multi `[0..4]`, 默认 `model.use_side_heads=True` |
+| A3b | without side head | `run_train_pose_gated_nosidehead.sh` | full multi `[0..4]`, `model.use_side_heads=False` |
 
-建议：同样固定 fusion setting 再对比，否则会和 layer ablation 混在一起。
+说明：固定 full multi `[0,1,2,3,4]` 后对比 side head，避免和 layer ablation 混在一起。
 
 ### A4. Loss Components
 
 | Row | Method | 脚本 | `loss.selection` |
 |---|---|---|---|
-| A4a | all losses | `run_train_pose_atn_single.sh` | `["cls","attn_loss","bg","tmp"]` |
-| A4b | w/o bg loss | `run_train_pose_gated_nobgloss.sh` | `["cls","attn_loss","tmp"]` |
-| A4c | w/o tmp loss | `run_train_pose_gated_notmploss.sh` | `["cls","attn_loss","bg"]` |
+| A4a | all losses | `run_train_pose_gated_best.sh` with `PBS_SUBREQNO=4` | full multi `[0..4]`, `["cls","attn_loss","bg","tmp"]` |
+| A4b | w/o bg loss | `run_train_pose_gated_nobgloss.sh` | full multi `[0..4]`, `["cls","attn_loss","tmp"]` |
+| A4c | w/o tmp loss | `run_train_pose_gated_notmploss.sh` | full multi `[0..4]`, `["cls","attn_loss","bg"]` |
 
 ### A5. Fusion Layers
 
@@ -144,17 +145,17 @@ PoseGated 的 `fusion_layers` 映射在 `project/models/pose_fusion_res_3dcnn.py
 
 ## 五、当前最该补/修的地方
 
-1. 修正文案：所有 `#PBS -t 0-4 (5 folds, 遍历融合层)` 应改成 `0-4 = fusion layer / prefix index`，因为 `$PBS_SUBREQNO` 没有传给 fold。
+1. 修正文案：只有 fusion-layer 脚本里的 `#PBS -t 0-4` 表示 fusion layer / prefix index；组件消融脚本已固定 full multi `[0,1,2,3,4]`。
 2. 决定是否恢复 `cross_atn`：`project/train.py` 里 `cross_atn` 分支目前被注释；若要跑 `run_train_cross_atn.sh`，需要接回对应 trainer。
 3. 补 early fusion 脚本：`add` / `mul` / `concat` 在代码里支持，但 Pegasus 目录没有对应脚本。
 4. 重新命名或修正 `run_train_skeleton_only.sh`：当前它是 `attn_map=False` baseline，不是真正 skeleton-only。
-5. 如果论文表格要干净，A2/A3/A4 最好固定同一个 fusion setting，例如 `single[best]` 或 `multi[4]`，不要让每个消融同时扫 5 个 layer。
+5. 如果需要节省算力，`run_train_pose_gated_best.sh` 可只提交 `PBS_SUBREQNO=4` 作为 full multi 主结果和 A2/A3/A4 的默认对照。
 
 ## 六、推荐跑实验顺序
 
 1. 先跑主结果：`run_train_3dcnn.sh`、`run_train_pose_gated_best.sh` 的 `PBS_SUBREQNO=4`。
-2. 再跑 A5：`run_train_pose_atn_single.sh` 和 `run_train_pose_atn_multi.sh`，确定 best fusion setting。
-3. 固定 best setting 后跑 A2/A3/A4，得到干净消融。
+2. 再跑 A5：`run_train_pose_atn_single.sh` 和 `run_train_pose_atn_multi.sh`，报告层位置/层数消融。
+3. 跑 A2/A3/A4：这些脚本已经固定 full multi `[0,1,2,3,4]`，得到干净组件消融。
 4. 最后补 A1 的外部方法：SE、cross-attn、early add/mul/concat。
 
 ## 七、Figure 建议

@@ -201,12 +201,16 @@ def dump_all_feature_maps(
     os.makedirs(save_root, exist_ok=True)
 
     # prepare video info
-    video_info_list = []
-    for one_video in video_info:
-        for i in range(one_video["video"].shape[0]):
-            video_info_list.append(one_video["video_name"])
+    batch_size = video.size(0)
+    if video_info is None:
+        video_info_list = [f"sample{idx}" for idx in range(batch_size)]
+    else:
+        video_info_list = [
+            str(one_video.get("video_name", f"sample{idx}"))
+            for idx, one_video in enumerate(video_info)
+        ]
 
-    assert len(video_info_list) == video.size(0), "video_info length must match batch size"
+    assert len(video_info_list) == batch_size, "video_info length must match batch size"
 
     # 1) 注册 hooks
     feats: Dict[str, torch.Tensor] = {}
