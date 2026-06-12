@@ -147,12 +147,10 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
         ckpt_path="best",
     )
 
-    with open(
-        os.path.join(
-            hparams.train.log_path, "metrics", "fold_" + str(fold) + "_metrics.txt"
-        ),
-        "w",
-    ) as f:
+    metrics_dir = os.path.join(hparams.train.log_path, "metrics")
+    os.makedirs(metrics_dir, exist_ok=True)
+    metrics_path = os.path.join(metrics_dir, "fold_" + str(fold) + "_metrics.txt")
+    with open(metrics_path, "w") as f:
         f.write(str(metrics))
 
 
