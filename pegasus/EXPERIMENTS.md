@@ -26,12 +26,11 @@ python -m project.prepare_folds data.root_path=/work/SKIING/chenkaixu/data/asd_d
 | 脚本 | 实验角色 | array | sub-jobs | experiment tag |
 |---|---|---|---:|---|
 | `run_train_3dcnn.sh` | B1: RGB-only baseline | fold 0-2 | 3 | `baseline_rgb_f{fold}` |
-| `run_train_rgb_noattn.sh` | B2: RGB-only, attn_map=False | fold 0-2 | 3 | `baseline_rgb_noattn_f{fold}` |
 | `run_train_early_fuse.sh` | A1a-c: early add/mul/concat | method(3)×fold(3) | 9 | `early_{method}_f{fold}` |
 | `run_train_se_atn.sh` | A1d: SE fusion | prefix(5)×fold(3) | 15 | `se_atn_prefix{p}_f{fold}` |
 | `run_train_cross_atn.sh` | A1e: QKV cross-attention | cfg(L3/L4/L34)×fold(3) | 9 | `cross_atn_{cfg}_f{fold}` |
 | `run_train_pose_atn_single.sh` | A5a-e: 单层注入 | layer(5)×fold(3) | 15 | `pose_atn_single_L{l}_f{fold}` |
-| `run_train_pose_atn_multi.sh` | A5f-i: prefix 注入 P0-P3 | prefix(4)×fold(3) | 12 | `pose_atn_multi_P{p}_f{fold}` |
+| `run_train_pose_atn_multi.sh` | A5g-i: prefix 注入 P1-P3 | prefix(3)×fold(3) | 9 | `pose_atn_multi_P{p}_f{fold}` |
 | `run_train_pose_gated_best.sh` | **主结果**: full [0..4] | fold 0-2 | 3 | `pose_gated_full_f{fold}` |
 | `run_train_pose_gated_bias0.sh` | A2b: gate bias=0.0 | fold 0-2 | 3 | `pose_gated_bias0_f{fold}` |
 | `run_train_pose_gated_bias_neg1.sh` | A2c: gate bias=-1.0 | fold 0-2 | 3 | `pose_gated_biasneg1_f{fold}` |
@@ -39,7 +38,9 @@ python -m project.prepare_folds data.root_path=/work/SKIING/chenkaixu/data/asd_d
 | `run_train_pose_gated_nobgloss.sh` | A4a: 无 bg loss | fold 0-2 | 3 | `pose_gated_nobg_f{fold}` |
 | `run_train_pose_gated_notmploss.sh` | A4b: 无 tmp loss | fold 0-2 | 3 | `pose_gated_notmp_f{fold}` |
 
-合计 **84 个 sub-job**，每个 ≤ ~12h（一折一 node）。
+合计 **78 个 sub-job**，每个 ≤ ~12h（一折一 node）。
+
+> 已移除的重复实验（2026-07-24）：B2 `rgb_noattn`（fuse=none 忽略 attn_map，与 B1 完全等价）；multi P0 `[0]`（与 single L0 完全等价）。
 
 组合 array 的展开规则统一为 `SUBREQNO = 外层索引*3 + fold`：
 
@@ -94,7 +95,6 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 | Row | Method | 脚本 |
 |---|---|---|
 | B1 | RGB-only | `run_train_3dcnn.sh` |
-| B2 | RGB-only, no attn map | `run_train_rgb_noattn.sh`（注意：不是 skeleton-only） |
 
 ### A1. Fusion Method（→ Fig. 2）
 
@@ -128,16 +128,16 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 | Row | Method | 脚本 |
 |---|---|---|
 | A5a-e | single `[0]`..`[4]` | `run_train_pose_atn_single.sh` |
-| A5f-i | multi `[0]`..`[0..3]` | `run_train_pose_atn_multi.sh` |
+| A5g-i | multi `[0,1]`..`[0..3]` | `run_train_pose_atn_multi.sh`（P0=`[0]` 复用 single L0） |
 | A5j | multi `[0..4]` | 复用 `pose_gated_full`（勿重复跑） |
 
 ## 四、推荐提交顺序
 
 1. **预构建缓存**：`python -m project.prepare_folds data.root_path=...`（一次）
 2. **主结果**：`qsub run_train_pose_gated_best.sh` + `qsub run_train_3dcnn.sh`（6 node）
-3. **A5**：`qsub run_train_pose_atn_single.sh` + `qsub run_train_pose_atn_multi.sh`（27 node）
+3. **A5**：`qsub run_train_pose_atn_single.sh` + `qsub run_train_pose_atn_multi.sh`（24 node）
 4. **A2/A3/A4**：5 个组件消融脚本（15 node）
-5. **A1 外部方法**：`run_train_se_atn.sh`、`run_train_cross_atn.sh`、`run_train_early_fuse.sh`、`run_train_rgb_noattn.sh`（36 node）
+5. **A1 外部方法**：`run_train_se_atn.sh`、`run_train_cross_atn.sh`、`run_train_early_fuse.sh`（33 node）
 
 ## 五、Figure 规划
 

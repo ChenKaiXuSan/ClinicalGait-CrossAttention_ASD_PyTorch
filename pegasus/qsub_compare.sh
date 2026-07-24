@@ -8,7 +8,7 @@ set -euo pipefail
 #   ./qsub_compare.sh prebuild            # 1) build the fold cache ONCE (required)
 #   ./qsub_compare.sh main                # 2) preview main-result jobs
 #   ./qsub_compare.sh main --run          #    submit them
-#   ./qsub_compare.sh all --run           #    submit the whole matrix (84 sub-jobs)
+#   ./qsub_compare.sh all --run           #    submit the whole matrix (78 sub-jobs)
 #
 # See pegasus/EXPERIMENTS.md for the full matrix and recommended order.
 # ============================================================================
@@ -32,11 +32,11 @@ Modes:
   prebuild   Build the 3-fold cache once (run BEFORE submitting; ignores --run,
              always executes). Parallel fold jobs otherwise race on cache build.
   main       Main result: PoseGated full + RGB baseline            (2 scripts,  6 sub-jobs)
-  baseline   B1 RGB-only + B2 RGB no-attn                          (2 scripts,  6 sub-jobs)
+  baseline   B1 RGB-only                                          (1 script,   3 sub-jobs)
   fusion     A1 early(add/mul/concat) + SE + cross-attn            (3 scripts, 33 sub-jobs)
-  layers     A5 single-layer + multi-prefix                       (2 scripts, 27 sub-jobs)
+  layers     A5 single-layer + multi-prefix(P1-P3)                (2 scripts, 24 sub-jobs)
   ablation   A2 bias(0,-1) + A3 no-sidehead + A4 no-bg/no-tmp      (5 scripts, 15 sub-jobs)
-  all        Everything (13 scripts, 84 sub-jobs)
+  all        Everything (12 scripts, 78 sub-jobs)
 EOF
 }
 
@@ -47,7 +47,6 @@ main_scripts=(
 )
 baseline_scripts=(
     pegasus/run_train_3dcnn.sh
-    pegasus/run_train_rgb_noattn.sh
 )
 fusion_scripts=(
     pegasus/run_train_early_fuse.sh
