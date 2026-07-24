@@ -211,7 +211,7 @@ class SingleModule(LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": torch.optim.lr_scheduler.CosineAnnealingLR(
-                    optimizer, T_max=self.trainer.estimated_stepping_batches, verbose=True, 
+                    optimizer, T_max=self.trainer.estimated_stepping_batches,
                 ),
                 "monitor": "train/loss",
             },
