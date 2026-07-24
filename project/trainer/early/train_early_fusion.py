@@ -43,7 +43,7 @@ class EarlyFusion3DCNNTrainer(LightningModule):
         super().__init__()
 
         self.img_size = hparams.data.img_size
-        self.lr = hparams.optimizer.lr
+        self.lr = getattr(hparams.loss, "lr", 1e-3)  # lr lives under loss, not optimizer
         self.num_classes = hparams.model.model_class_num
 
         # define model

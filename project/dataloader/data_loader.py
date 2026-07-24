@@ -155,73 +155,31 @@ class WalkDataModule(LightningDataModule):
             stage (Optional[str], optional): trainer.stage, in ('fit', 'validate', 'test', 'predict'). Defaults to None.
         """
 
-        if self._attn_map:
-            # spatial-only transform for attention maps (no temporal subsample)
-            self._attn_transform = _make_attn_transform(self._img_size)
+        # Always use the map-style gait-chunk dataset (shuffle-able, produces the
+        # attn_map / disease keys collate_fn needs). Whether real doctor priors
+        # are loaded is controlled explicitly by load_attn=self._attn_map:
+        #   attn_map=True  -> real MedAttnMap heatmaps
+        #   attn_map=False -> zero-placeholder maps (B2, fuse=none ignores them)
+        # The old else-branch used an IterableDataset (labeled_video_dataset)
+        # which broke on shuffle=True and lacked the attn_map/disease keys.
+        self._attn_transform = _make_attn_transform(self._img_size)
 
-            # train dataset
-            self.train_gait_dataset = whole_video_dataset(
+        def _make(split_idx: int):
+            return whole_video_dataset(
                 experiment=self._experiment,
-                dataset_idx=self._dataset_idx[
-                    0
-                ],  # train mapped path, include gait cycle index.
+                dataset_idx=self._dataset_idx[split_idx],
                 transform=self.mapping_transform,
                 attn_transform=self._attn_transform,
                 skeleton_path=self._skeleton_path,
                 doctor_res_path=self._doctor_res_path,
                 clip_duration=self._clip_duration,
                 chunk_size=self.uniform_temporal_subsample_num,
+                load_attn=self._attn_map,
             )
 
-            # val dataset
-            self.val_gait_dataset = whole_video_dataset(
-                experiment=self._experiment,
-                dataset_idx=self._dataset_idx[
-                    1
-                ],  # val mapped path, include gait cycle index.
-                transform=self.mapping_transform,
-                attn_transform=self._attn_transform,
-                doctor_res_path=self._doctor_res_path,
-                skeleton_path=self._skeleton_path,
-                clip_duration=self._clip_duration,
-                chunk_size=self.uniform_temporal_subsample_num,
-            )
-
-            # test dataset
-            self.test_gait_dataset = whole_video_dataset(
-                experiment=self._experiment,
-                dataset_idx=self._dataset_idx[
-                    1
-                ],  # val mapped path, include gait cycle index.
-                transform=self.mapping_transform,
-                attn_transform=self._attn_transform,
-                doctor_res_path=self._doctor_res_path,
-                skeleton_path=self._skeleton_path,
-                clip_duration=self._clip_duration,
-                chunk_size=self.uniform_temporal_subsample_num,
-            )
-
-        else:
-            # train dataset
-            self.train_gait_dataset = labeled_video_dataset(
-                data_path=self._dataset_idx[2],
-                clip_sampler=make_clip_sampler("uniform", self._clip_duration),
-                transform=self.train_video_transform,
-            )
-
-            # val dataset
-            self.val_gait_dataset = labeled_video_dataset(
-                data_path=self._dataset_idx[3],
-                clip_sampler=make_clip_sampler("uniform", self._clip_duration),
-                transform=self.val_video_transform,
-            )
-
-            # test dataset
-            self.test_gait_dataset = labeled_video_dataset(
-                data_path=self._dataset_idx[3],
-                clip_sampler=make_clip_sampler("uniform", self._clip_duration),
-                transform=self.val_video_transform,
-            )
+        self.train_gait_dataset = _make(0)  # train mapped path (gait cycle index)
+        self.val_gait_dataset = _make(1)  # val mapped path
+        self.test_gait_dataset = _make(1)  # test == val mapped path
 
     def collate_fn(self, batch):
         """this function process the batch data, and return the batch data.

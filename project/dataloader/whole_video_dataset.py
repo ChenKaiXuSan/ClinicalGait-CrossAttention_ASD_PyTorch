@@ -154,6 +154,7 @@ class LabeledGaitVideoDataset(torch.utils.data.Dataset):
         doctor_res_path: str = "",
         skeleton_path: str = "",
         chunk_size: int = 8,
+        load_attn: bool = True,
     ) -> None:
         super().__init__()
 
@@ -167,7 +168,11 @@ class LabeledGaitVideoDataset(torch.utils.data.Dataset):
         self._experiment = experiment
         self._shape_debug_logged = False
 
-        if "True" in self._experiment:
+        # Load doctor-annotated attention maps only when explicitly requested.
+        # Previously gated on '"True" in experiment_name', which silently fed
+        # ZERO attention maps whenever the experiment tag lacked the substring
+        # "True" (e.g. custom tags like "pose_gated_full_f0").
+        if load_attn:
             self.attn_map = MedAttnMap(doctor_res_path, skeleton_path)
 
         # pre-build index_map: one entry per chunk, spanning all videos
@@ -315,6 +320,7 @@ def whole_video_dataset(
     skeleton_path: str = "",
     clip_duration: int = 1,
     chunk_size: int = 8,
+    load_attn: bool = True,
 ) -> LabeledGaitVideoDataset:
     dataset = LabeledGaitVideoDataset(
         experiment=experiment,
@@ -324,6 +330,7 @@ def whole_video_dataset(
         doctor_res_path=doctor_res_path,
         skeleton_path=skeleton_path,
         chunk_size=chunk_size,
+        load_attn=load_attn,
     )
 
     return dataset
