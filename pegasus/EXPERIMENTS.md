@@ -1,78 +1,81 @@
-# Pegasus 实验总览表（按当前脚本/代码状态）
+# Pegasus 实验总览表（2026-07 重构版：3-fold + 每折一个 node）
 
-这份表只记录当前 `pegasus/*.sh` 和 `configs/config.yaml` 里实际能看到的实验设置。旧版里有些条目是论文设计稿，例如 `run_train_early_fuse_add.sh` / `concat.sh` / `mul.sh`，但当前目录里没有这些脚本，所以这里拆成“已有脚本”和“待补实验”。
+这份表记录当前 `pegasus/*.sh` 和 `configs/config.yaml` 里实际的实验设置。
 
-## 一、当前已有脚本
+## ⚠️ 重要变更（2026-07-24）
 
-| 脚本 | 实验角色 | 实际 override | PBS array 含义 | 当前状态 |
-|---|---|---|---|---|
-| `run_train_3dcnn.sh` | RGB-only baseline | `model.fuse_method=none`, `train.fold=5` | 无 array | 可作为无 fusion 基线 |
-| `run_train_skeleton_only.sh` | no-prior baseline | `model.fuse_method=none`, `train.attn_map=False`, `train.fold=5` | `0-4`，但脚本没有使用 `$PBS_SUBREQNO` | 当前工作区已删除；若恢复，建议加 `train.experiment=baseline_rgb_noattn` |
-| `run_train_pose_atn_single.sh` | PoseGated 单层注入 | `model.fuse_method=pose_atn`, `model.ablation_study=single`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4` = 只在对应 block 融合 | 可跑 |
-| `run_train_pose_atn_multi.sh` | PoseGated 多层累加注入 | `model.fuse_method=pose_atn`, `model.ablation_study=multi`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4` = `[0]` 到 `[0,1,2,3,4]` | 可跑 |
-| `run_train_pose_gated_best.sh` | PoseGated full / final config | `model.fuse_method=pose_atn`, `model.ablation_study=multi`, `model.fusion_layers=$PBS_SUBREQNO` | `0..4`，其中 `4` 是 full `[0..4]` | 名字是 best，但实际仍扫 multi prefix |
-| `run_train_pose_gated_bias0.sh` | gate bias 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `model.gate_init_bias=0.0` | 无 array，固定 full `[0..4]` | 可跑 |
-| `run_train_pose_gated_bias_neg1.sh` | gate bias 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `model.gate_init_bias=-1.0` | 无 array，固定 full `[0..4]` | 可跑 |
-| `run_train_pose_gated_nosidehead.sh` | side head 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `model.use_side_heads=False` | 无 array，固定 full `[0..4]` | 可跑 |
-| `run_train_pose_gated_nobgloss.sh` | loss 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `loss.selection=["cls","attn_loss","tmp"]` | 无 array，固定 full `[0..4]` | 可跑 |
-| `run_train_pose_gated_notmploss.sh` | loss 消融 | `model.ablation_study=multi`, `model.fusion_layers=4`, `loss.selection=["cls","attn_loss","bg"]` | 无 array，固定 full `[0..4]` | 可跑 |
-| `run_train_se_atn_single.sh` | SE fusion 对比 | `model.fuse_method=se_atn`, `model.ablation_study=single`, `model.fusion_layers=$PBS_SUBREQNO` | 当前代码里 `fusion_layers=0..4` 映射为 prefix `[0]` 到 `[0..4]`，不是严格 single | 可跑，但脚本文案需要注意 |
-| `run_train_cross_atn.sh` | Cross-attention 对比 | `model.fuse_method=cross_atn`, `model.fusion_layers=$PBS_SUBREQNO` | 当前代码里 `fusion_layers=0..4` 映射为 prefix `[0]` 到 `[0..4]` | 当前工作区已删除；若恢复，还需要接回 `cross_atn` trainer，并建议加 `train.experiment=cross_atn_prefix_$PBS_SUBREQNO` |
+1. **5-fold → 3-fold**：`train.fold=3`。原因：24h walltime 装不下 5 折串行训练（2026-06 那批作业几乎全部在中途被杀，26 个实验只有 1 个跑完全部 5 折）。
+2. **每折独占一个 node**：`train.py` 新增 `train.fold_idx`（`-1`=串行跑全部折，`>=0`=只跑该折）。所有脚本的 PBS array 现在展开到 fold 维度，单个 sub-job 只跑一折（full 配置实测单折 ~11h < 24h walltime）。
+3. **旧 5-fold 结果全部作废**：换 fold 数意味着换数据划分，2026-06 之前的结果不能与新结果混用。旧日志仍在 `logs/train/` 旧命名目录下（新实验 tag 全部带 `_f{fold}` 后缀，不会混淆）。
+4. **fold 缓存目录带 K 后缀**（`index_mapping/<class_num>/over_K3/`），切换 fold 数不会静默复用旧划分；并行作业构建缓存有目录锁保护。
+5. **`cross_atn` trainer 已接回**（`project/trainer/mid/train_cross_attn.py`），early fusion 脚本已补齐。
+6. `run_train_se_atn_single.sh` 更名为 `run_train_se_atn.sh`（SE 实际是 prefix 融合，旧名误导）。
 
-## 二、日志目录命名
+## 〇、提交前准备（必做一次）
 
-当前 Pegasus 脚本已显式传入 `train.experiment=...`，因此日志会落到：
+并行 fold 作业首次运行需要 fold 缓存。虽然有锁保护（其余作业会等第一个构建完），但预构建更稳妥：
 
-```text
-logs/train/<train.experiment>/<date>/<time>/
+```bash
+python -m project.prepare_folds data.root_path=/work/SKIING/chenkaixu/data/asd_dataset
 ```
 
-已设置的 experiment tag：
+缓存构建包含视频复制，耗时较长；只需做一次，之后所有作业直接加载。
 
-| 脚本 | `train.experiment` |
-|---|---|
-| `run_train_3dcnn.sh` | `baseline_rgb_3dcnn` |
-| `run_train_se_atn_single.sh` | `se_atn_prefix_${PBS_SUBREQNO}` |
-| `run_train_pose_atn_single.sh` | `pose_atn_single_${PBS_SUBREQNO}` |
-| `run_train_pose_atn_multi.sh` | `pose_atn_multi_${PBS_SUBREQNO}` |
-| `run_train_pose_gated_best.sh` | `pose_gated_best_multi_${PBS_SUBREQNO}` |
-| `run_train_pose_gated_bias0.sh` | `pose_atn_bias0_multi_4` |
-| `run_train_pose_gated_bias_neg1.sh` | `pose_atn_bias_neg1_multi_4` |
-| `run_train_pose_gated_nosidehead.sh` | `pose_atn_noside_multi_4` |
-| `run_train_pose_gated_nobgloss.sh` | `pose_atn_nobg_multi_4` |
-| `run_train_pose_gated_notmploss.sh` | `pose_atn_notmp_multi_4` |
+## 一、当前脚本总表
 
-这样 `bias0`、`bias_neg1`、`noside`、`nobg`、`notmp` 不会再混在默认目录名里，并且都固定在 full multi `[0,1,2,3,4]` 上做组件消融。
+| 脚本 | 实验角色 | array | sub-jobs | experiment tag |
+|---|---|---|---:|---|
+| `run_train_3dcnn.sh` | B1: RGB-only baseline | fold 0-2 | 3 | `baseline_rgb_f{fold}` |
+| `run_train_rgb_noattn.sh` | B2: RGB-only, attn_map=False | fold 0-2 | 3 | `baseline_rgb_noattn_f{fold}` |
+| `run_train_early_fuse.sh` | A1a-c: early add/mul/concat | method(3)×fold(3) | 9 | `early_{method}_f{fold}` |
+| `run_train_se_atn.sh` | A1d: SE fusion | prefix(5)×fold(3) | 15 | `se_atn_prefix{p}_f{fold}` |
+| `run_train_cross_atn.sh` | A1e: QKV cross-attention | cfg(L3/L4/L34)×fold(3) | 9 | `cross_atn_{cfg}_f{fold}` |
+| `run_train_pose_atn_single.sh` | A5a-e: 单层注入 | layer(5)×fold(3) | 15 | `pose_atn_single_L{l}_f{fold}` |
+| `run_train_pose_atn_multi.sh` | A5f-i: prefix 注入 P0-P3 | prefix(4)×fold(3) | 12 | `pose_atn_multi_P{p}_f{fold}` |
+| `run_train_pose_gated_best.sh` | **主结果**: full [0..4] | fold 0-2 | 3 | `pose_gated_full_f{fold}` |
+| `run_train_pose_gated_bias0.sh` | A2b: gate bias=0.0 | fold 0-2 | 3 | `pose_gated_bias0_f{fold}` |
+| `run_train_pose_gated_bias_neg1.sh` | A2c: gate bias=-1.0 | fold 0-2 | 3 | `pose_gated_biasneg1_f{fold}` |
+| `run_train_pose_gated_nosidehead.sh` | A3: 无 side head | fold 0-2 | 3 | `pose_gated_noside_f{fold}` |
+| `run_train_pose_gated_nobgloss.sh` | A4a: 无 bg loss | fold 0-2 | 3 | `pose_gated_nobg_f{fold}` |
+| `run_train_pose_gated_notmploss.sh` | A4b: 无 tmp loss | fold 0-2 | 3 | `pose_gated_notmp_f{fold}` |
 
-## 三、关键代码映射
+合计 **84 个 sub-job**，每个 ≤ ~12h（一折一 node）。
+
+组合 array 的展开规则统一为 `SUBREQNO = 外层索引*3 + fold`：
+
+```bash
+layer=$(( PBS_SUBREQNO / 3 ))   # 或 prefix / method / cfg
+fold=$((  PBS_SUBREQNO % 3 ))
+```
+
+日志目录：`logs/train/<train.experiment>/<date>/<time>/`；每折的 test metrics 在 `<run_dir>/metrics/fold_{fold}_metrics.txt`。
+
+## 二、关键代码映射
 
 `configs/config.yaml` 默认值：
 
 ```yaml
+train.fold: 3
+train.fold_idx: -1        # 脚本里覆盖为具体 fold
 loss.selection: ["cls", "attn_loss", "bg", "tmp"]
 model.use_side_heads: True
 model.gate_init_bias: 2.0
 model.fuse_method: pose_atn
 model.fusion_layers: 5
 model.ablation_study: single
-train.fold: 5
 ```
 
-PoseGated 的 `fusion_layers` 映射在 `project/models/pose_fusion_res_3dcnn.py`：
+PoseGated 的 `fusion_layers` 映射（`project/models/pose_fusion_res_3dcnn.py`）：
 
 | `ablation_study` | `fusion_layers` | 实际融合层 |
 |---|---:|---|
-| `single` | `0` | `[0]` |
-| `single` | `1` | `[1]` |
-| `single` | `2` | `[2]` |
-| `single` | `3` | `[3]` |
-| `single` | `4` | `[4]` |
-| `multi` | `0` | `[0]` |
-| `multi` | `1` | `[0,1]` |
-| `multi` | `2` | `[0,1,2]` |
-| `multi` | `3` | `[0,1,2,3]` |
-| `multi` | `4` | `[0,1,2,3,4]` |
+| `single` | `i` (0-4) | `[i]` |
+| `multi` | `i` (0-4) | `[0..i]` |
 | 任意 | `5` | `[0,1,2,3,4]` |
+
+SE / CrossAttention 模型的 int `fusion_layers` 走各自文件里的 `fuse_layers_mapping`（SE: `i→[0..i]` prefix；cross: 显式列表更直观，脚本直接传 `[3]`/`[4]`/`[3,4]`），`ablation_study` 对它们无效。
+
+cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×56×16 → THW≈50k）需要 ~10GB/样本，必然 OOM；layer2 也在边缘。
 
 层含义：
 
@@ -84,81 +87,59 @@ PoseGated 的 `fusion_layers` 映射在 `project/models/pose_fusion_res_3dcnn.py
 | 3 | layer3 | 1024 |
 | 4 | layer4 | 2048 |
 
-注意：多数 Pegasus 脚本里 `#PBS -t 0-4` 不是 fold index，而是传给 `model.fusion_layers` 的融合层/融合层前缀索引。`train.fold=5` 是训练配置里的 fold 数或 fold 参数，不能和 `$PBS_SUBREQNO` 混在一起解释。
-
-## 四、建议的论文/实验对比矩阵
+## 三、论文实验矩阵
 
 ### A0. Baseline
 
-| Row | Method | 脚本 | 参数 | 目的 |
-|---|---|---|---|---|
-| B1 | RGB-only | `run_train_3dcnn.sh` | `fuse_method=none` | 主基线 |
-| B2 | RGB-only, no attn map | `run_train_skeleton_only.sh` | `fuse_method=none`, `attn_map=False` | 检查 dataloader 不加载 prior 的情况 |
+| Row | Method | 脚本 |
+|---|---|---|
+| B1 | RGB-only | `run_train_3dcnn.sh` |
+| B2 | RGB-only, no attn map | `run_train_rgb_noattn.sh`（注意：不是 skeleton-only） |
 
-说明：`run_train_skeleton_only.sh` 当前不是 skeleton-only。若论文需要 “skeleton-only”，需要新增 dataloader/model 支持仅骨架输入。
+### A1. Fusion Method（→ Fig. 2）
 
-### A1. Fusion Method
-
-| Row | Method | 当前脚本/代码 | 建议状态 |
+| Row | Method | 脚本 | 报告方式 |
 |---|---|---|---|
-| A1a | Early add | 代码支持 `model.fuse_method=add`，无 Pegasus 脚本 | 待补脚本 |
-| A1b | Early concat | 代码支持 `model.fuse_method=concat`，无 Pegasus 脚本 | 待补脚本 |
-| A1c | Early mul | 代码支持 `model.fuse_method=mul`，无 Pegasus 脚本 | 待补脚本 |
-| A1d | SE fusion | `run_train_se_atn_single.sh` | 可跑；注意实际是 prefix mapping |
-| A1e | Cross-attention | `run_train_cross_atn.sh` | 先恢复 `project/train.py` 的 `cross_atn` trainer 入口 |
-| A1f | PoseGated | `run_train_pose_atn_single.sh` / `run_train_pose_atn_multi.sh` | 主方法 |
+| A1a-c | Early add / mul / concat | `run_train_early_fuse.sh` | 各方法 3 折均值 |
+| A1d | SE fusion | `run_train_se_atn.sh` | prefix 扫描取最优点 |
+| A1e | Cross-attention | `run_train_cross_atn.sh` | {L3, L4, L3+4} 取最优点 |
+| A1f | **PoseGated (ours)** | `run_train_pose_gated_best.sh` | full [0..4] |
 
-### A2. Gate Init Bias
+### A2. Gate Init Bias（→ Fig. 4）
 
-| Row | Method | 脚本 | 参数 |
-|---|---|---|---|
-| A2a | bias = 2.0 | `run_train_pose_gated_best.sh` with `PBS_SUBREQNO=4` | full multi `[0..4]`, 默认 `model.gate_init_bias=2.0` |
-| A2b | bias = 0.0 | `run_train_pose_gated_bias0.sh` | full multi `[0..4]`, `model.gate_init_bias=0.0` |
-| A2c | bias = -1.0 | `run_train_pose_gated_bias_neg1.sh` | full multi `[0..4]`, `model.gate_init_bias=-1.0` |
+| Row | bias | 脚本 |
+|---|---:|---|
+| A2a | 2.0 | 复用 `pose_gated_full` |
+| A2b | 0.0 | `run_train_pose_gated_bias0.sh` |
+| A2c | -1.0 | `run_train_pose_gated_bias_neg1.sh` |
 
-说明：这组三个实验固定 full multi `[0,1,2,3,4]`，只比较 gate 初始化。
+### A3 + A4. 组件/损失消融（→ Fig. 5）
 
-### A3. Side Head
+全部固定 full multi `[0,1,2,3,4]`，与 `pose_gated_full` 单变量对照：
 
-| Row | Method | 脚本 | 参数 |
-|---|---|---|---|
-| A3a | with side head | `run_train_pose_gated_best.sh` with `PBS_SUBREQNO=4` | full multi `[0..4]`, 默认 `model.use_side_heads=True` |
-| A3b | without side head | `run_train_pose_gated_nosidehead.sh` | full multi `[0..4]`, `model.use_side_heads=False` |
+| Row | 拆掉 | 脚本 |
+|---|---|---|
+| A3 | side heads | `run_train_pose_gated_nosidehead.sh` |
+| A4a | bg loss | `run_train_pose_gated_nobgloss.sh` |
+| A4b | tmp loss | `run_train_pose_gated_notmploss.sh` |
 
-说明：固定 full multi `[0,1,2,3,4]` 后对比 side head，避免和 layer ablation 混在一起。
+### A5. Fusion Layers（→ Fig. 3）
 
-### A4. Loss Components
+| Row | Method | 脚本 |
+|---|---|---|
+| A5a-e | single `[0]`..`[4]` | `run_train_pose_atn_single.sh` |
+| A5f-i | multi `[0]`..`[0..3]` | `run_train_pose_atn_multi.sh` |
+| A5j | multi `[0..4]` | 复用 `pose_gated_full`（勿重复跑） |
 
-| Row | Method | 脚本 | `loss.selection` |
-|---|---|---|---|
-| A4a | all losses | `run_train_pose_gated_best.sh` with `PBS_SUBREQNO=4` | full multi `[0..4]`, `["cls","attn_loss","bg","tmp"]` |
-| A4b | w/o bg loss | `run_train_pose_gated_nobgloss.sh` | full multi `[0..4]`, `["cls","attn_loss","tmp"]` |
-| A4c | w/o tmp loss | `run_train_pose_gated_notmploss.sh` | full multi `[0..4]`, `["cls","attn_loss","bg"]` |
+## 四、推荐提交顺序
 
-### A5. Fusion Layers
+1. **预构建缓存**：`python -m project.prepare_folds data.root_path=...`（一次）
+2. **主结果**：`qsub run_train_pose_gated_best.sh` + `qsub run_train_3dcnn.sh`（6 node）
+3. **A5**：`qsub run_train_pose_atn_single.sh` + `qsub run_train_pose_atn_multi.sh`（27 node）
+4. **A2/A3/A4**：5 个组件消融脚本（15 node）
+5. **A1 外部方法**：`run_train_se_atn.sh`、`run_train_cross_atn.sh`、`run_train_early_fuse.sh`、`run_train_rgb_noattn.sh`（36 node）
 
-| Row | Method | 脚本 | 对比内容 |
-|---|---|---|---|
-| A5a-e | single layer | `run_train_pose_atn_single.sh` | `[0]`, `[1]`, `[2]`, `[3]`, `[4]` |
-| A5f-j | multi prefix | `run_train_pose_atn_multi.sh` | `[0]`, `[0,1]`, `[0,1,2]`, `[0,1,2,3]`, `[0,1,2,3,4]` |
-| Final | full PoseGated | `run_train_pose_gated_best.sh` with `PBS_SUBREQNO=4` | `[0,1,2,3,4]` + side head + all losses + default bias |
-
-## 五、当前最该补/修的地方
-
-1. 修正文案：只有 fusion-layer 脚本里的 `#PBS -t 0-4` 表示 fusion layer / prefix index；组件消融脚本已固定 full multi `[0,1,2,3,4]`。
-2. 决定是否恢复 `cross_atn`：`project/train.py` 里 `cross_atn` 分支目前被注释；若要跑 `run_train_cross_atn.sh`，需要接回对应 trainer。
-3. 补 early fusion 脚本：`add` / `mul` / `concat` 在代码里支持，但 Pegasus 目录没有对应脚本。
-4. 重新命名或修正 `run_train_skeleton_only.sh`：当前它是 `attn_map=False` baseline，不是真正 skeleton-only。
-5. 如果需要节省算力，`run_train_pose_gated_best.sh` 可只提交 `PBS_SUBREQNO=4` 作为 full multi 主结果和 A2/A3/A4 的默认对照。
-
-## 六、推荐跑实验顺序
-
-1. 先跑主结果：`run_train_3dcnn.sh`、`run_train_pose_gated_best.sh` 的 `PBS_SUBREQNO=4`。
-2. 再跑 A5：`run_train_pose_atn_single.sh` 和 `run_train_pose_atn_multi.sh`，报告层位置/层数消融。
-3. 跑 A2/A3/A4：这些脚本已经固定 full multi `[0,1,2,3,4]`，得到干净组件消融。
-4. 最后补 A1 的外部方法：SE、cross-attn、early add/mul/concat。
-
-## 七、Figure 建议
+## 五、Figure 规划
 
 | Figure | 内容 | 数据来源 |
 |---|---|---|
@@ -167,5 +148,10 @@ PoseGated 的 `fusion_layers` 映射在 `project/models/pose_fusion_res_3dcnn.py
 | Fig. 3 | Single vs multi fusion layer | A5 |
 | Fig. 4 | Gate init bias curve | A2 |
 | Fig. 5 | Side head / loss component ablation | A3 + A4 |
-| Fig. 6 | Per-class ROC / confusion matrix | final model |
-| Fig. 7 | Gate/attention visualization case study | final model checkpoint |
+| Fig. 6 | Per-class ROC / confusion matrix | pose_gated_full |
+| Fig. 7 | Gate/attention visualization case study | pose_gated_full checkpoint |
+
+## 六、遗留事项
+
+1. skeleton-only baseline（仅骨架输入）仍未实现，需要 dataloader/model 支持后另开脚本。
+2. `analysis/` 的画图 notebook 需要适配新的 `_f{fold}` 日志目录命名（glob `<tag>_f*`）。

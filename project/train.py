@@ -46,6 +46,7 @@ from project.trainer.early.train_early_fusion import EarlyFusion3DCNNTrainer
 from project.trainer.late.train_late_fusion import LateFusion3DCNNTrainer
 
 # attention based
+from project.trainer.mid.train_cross_attn import CrossAttentionTrainer
 from project.trainer.mid.train_pose_attn import PoseAttnTrainer
 from project.trainer.mid.train_se_attn import SEAttnTrainer
 
@@ -73,6 +74,8 @@ def train(hparams: DictConfig, dataset_idx, fold: int):
             classification_module = PoseAttnTrainer(hparams)
         elif hparams.model.fuse_method == "se_atn":
             classification_module = SEAttnTrainer(hparams)
+        elif hparams.model.fuse_method == "cross_atn":
+            classification_module = CrossAttentionTrainer(hparams)
         elif hparams.model.fuse_method in ["add", "mul", "concat", "avg"]:
             classification_module = EarlyFusion3DCNNTrainer(hparams)
         elif hparams.model.fuse_method == "late":
@@ -166,8 +169,12 @@ def init_params(config):
 
     fold_dataset_idx = DefineCrossValidation(config)()
 
+    # * single-fold mode: train.fold_idx >= 0 trains only that fold.
+    # * used by PBS array jobs (one fold per node); -1 trains all folds serially.
+    fold_idx = int(config.train.get("fold_idx", -1))
+
     logger.info("#" * 50)
-    logger.info("Start train all fold")
+    logger.info("Start train all fold" if fold_idx < 0 else f"Start train single fold: {fold_idx}")
     logger.info("#" * 50)
 
     #########
@@ -175,16 +182,27 @@ def init_params(config):
     #########
     # * for one fold, we first train/val model, then save the best ckpt preds/label into .pt file.
 
+    trained_folds = 0
     for fold, dataset_value in fold_dataset_idx.items():
+        if fold_idx >= 0 and int(fold) != fold_idx:
+            continue
+
         logger.info("#" * 50)
         logger.info(f"Start train fold: {fold}")
         logger.info("#" * 50)
 
         train(config, dataset_value, fold)
+        trained_folds += 1
 
         logger.info("#" * 50)
         logger.info(f"finish train fold: {fold}")
         logger.info("#" * 50)
+
+    if trained_folds == 0:
+        raise ValueError(
+            f"train.fold_idx={fold_idx} matched no fold "
+            f"(available: {list(fold_dataset_idx.keys())})"
+        )
 
     logger.info("#" * 50)
     logger.info("finish train all fold")

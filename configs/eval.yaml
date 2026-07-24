@@ -62,7 +62,8 @@ train:
   log_path: logs/train/${train.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
   fast_dev_run: False # if use the fast_dev_run
-  fold: 5 # the fold number of the cross validation
+  fold: 3 # the fold number of the cross validation
+  fold_idx: -1 # -1: all folds; >=0: only that fold
 
 eval:
   gpu: 0 # choices=[0, 1], help='the gpu number whicht to eval'

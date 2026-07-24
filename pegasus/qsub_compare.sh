@@ -1,91 +1,117 @@
 #!/bin/bash
 set -euo pipefail
 
-# Batch submit Pegasus comparison experiments.
-# Default is dry-run. Add --run to actually submit jobs.
+# ============================================================================
+# Batch driver for the ASD experiment matrix (3-fold, one fold per node).
+# Default is DRY-RUN. Add --run to actually submit.
+#
+#   ./qsub_compare.sh prebuild            # 1) build the fold cache ONCE (required)
+#   ./qsub_compare.sh main                # 2) preview main-result jobs
+#   ./qsub_compare.sh main --run          #    submit them
+#   ./qsub_compare.sh all --run           #    submit the whole matrix (84 sub-jobs)
+#
+# See pegasus/EXPERIMENTS.md for the full matrix and recommended order.
+# ============================================================================
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."   # repo root
 
-MODE="${1:-all}"
+# Must match the root_path used inside every run_train_*.sh
+ROOT_PATH="/work/SKIING/chenkaixu/data/asd_dataset"
+# Fold cache written by project.prepare_folds (class_num=3, sampling=over, K=3)
+CACHE_INDEX="${ROOT_PATH}/pose_attn_map_dataset/index_mapping/3/over_K3/index.json"
+
+MODE="${1:-help}"
 ACTION="${2:-dry-run}"
 
 usage() {
     cat <<'EOF'
 Usage:
-  ./qsub_compare.sh [main|fusion|ablation|all] [dry-run|--run]
-
-Examples:
-  ./qsub_compare.sh
-  ./qsub_compare.sh main
-  ./qsub_compare.sh all --run
+  ./pegasus/qsub_compare.sh <mode> [dry-run|--run]
 
 Modes:
-  main      baseline + final/best PoseGated
-  fusion    fusion-layer/method comparison
-  ablation  bias / side-head / loss ablations
-  all       all comparison training scripts
+  prebuild   Build the 3-fold cache once (run BEFORE submitting; ignores --run,
+             always executes). Parallel fold jobs otherwise race on cache build.
+  main       Main result: PoseGated full + RGB baseline            (2 scripts,  6 sub-jobs)
+  baseline   B1 RGB-only + B2 RGB no-attn                          (2 scripts,  6 sub-jobs)
+  fusion     A1 early(add/mul/concat) + SE + cross-attn            (3 scripts, 33 sub-jobs)
+  layers     A5 single-layer + multi-prefix                       (2 scripts, 27 sub-jobs)
+  ablation   A2 bias(0,-1) + A3 no-sidehead + A4 no-bg/no-tmp      (5 scripts, 15 sub-jobs)
+  all        Everything (13 scripts, 84 sub-jobs)
 EOF
 }
 
+# --- script groups (must match files in pegasus/) ---------------------------
 main_scripts=(
-    run_train_3dcnn.sh
-    run_train_pose_gated_best.sh
+    pegasus/run_train_pose_gated_best.sh
+    pegasus/run_train_3dcnn.sh
 )
-
+baseline_scripts=(
+    pegasus/run_train_3dcnn.sh
+    pegasus/run_train_rgb_noattn.sh
+)
 fusion_scripts=(
-    run_train_pose_atn_single.sh
-    run_train_pose_atn_multi.sh
-    run_train_se_atn_single.sh
+    pegasus/run_train_early_fuse.sh
+    pegasus/run_train_se_atn.sh
+    pegasus/run_train_cross_atn.sh
+)
+layers_scripts=(
+    pegasus/run_train_pose_atn_single.sh
+    pegasus/run_train_pose_atn_multi.sh
+)
+ablation_scripts=(
+    pegasus/run_train_pose_gated_bias0.sh
+    pegasus/run_train_pose_gated_bias_neg1.sh
+    pegasus/run_train_pose_gated_nosidehead.sh
+    pegasus/run_train_pose_gated_nobgloss.sh
+    pegasus/run_train_pose_gated_notmploss.sh
+)
+# 'all' = the 13 unique scripts (pose_gated_best + baseline + fusion + layers + ablation)
+all_scripts=(
+    pegasus/run_train_pose_gated_best.sh
+    "${baseline_scripts[@]}"
+    "${fusion_scripts[@]}"
+    "${layers_scripts[@]}"
+    "${ablation_scripts[@]}"
 )
 
-ablation_scripts=(
-    run_train_pose_gated_bias0.sh
-    run_train_pose_gated_bias_neg1.sh
-    run_train_pose_gated_nosidehead.sh
-    run_train_pose_gated_nobgloss.sh
-    run_train_pose_gated_notmploss.sh
-)
+# --- prebuild: build fold cache once ----------------------------------------
+if [[ "$MODE" == "prebuild" ]]; then
+    echo "Building 3-fold cache (class_num=3, sampling=over, K=3)..."
+    source pegasus/setup_env.sh
+    python -m project.prepare_folds data.root_path="${ROOT_PATH}"
+    echo "Cache ready: ${CACHE_INDEX}"
+    exit 0
+fi
 
 case "$MODE" in
-    main)
-        scripts=("${main_scripts[@]}")
-        ;;
-    fusion)
-        scripts=("${fusion_scripts[@]}")
-        ;;
-    ablation)
-        scripts=("${ablation_scripts[@]}")
-        ;;
-    all)
-        scripts=("${main_scripts[@]}" "${fusion_scripts[@]}" "${ablation_scripts[@]}")
-        ;;
-    -h|--help|help)
-        usage
-        exit 0
-        ;;
-    *)
-        echo "Unknown mode: $MODE" >&2
-        usage
-        exit 2
-        ;;
+    main)     scripts=("${main_scripts[@]}") ;;
+    baseline) scripts=("${baseline_scripts[@]}") ;;
+    fusion)   scripts=("${fusion_scripts[@]}") ;;
+    layers)   scripts=("${layers_scripts[@]}") ;;
+    ablation) scripts=("${ablation_scripts[@]}") ;;
+    all)      scripts=("${all_scripts[@]}") ;;
+    -h|--help|help) usage; exit 0 ;;
+    *) echo "Unknown mode: $MODE" >&2; usage; exit 2 ;;
 esac
 
 if [[ "$ACTION" != "dry-run" && "$ACTION" != "--run" ]]; then
-    echo "Unknown action: $ACTION" >&2
-    usage
-    exit 2
+    echo "Unknown action: $ACTION" >&2; usage; exit 2
 fi
 
-echo "Mode: $MODE"
-echo "Action: $ACTION"
-echo
+# --- guard: fold cache must exist before parallel fold jobs are submitted ----
+if [[ "$ACTION" == "--run" && ! -f "$CACHE_INDEX" ]]; then
+    echo "ERROR: fold cache not found: $CACHE_INDEX" >&2
+    echo "Run './pegasus/qsub_compare.sh prebuild' first (parallel fold jobs would" >&2
+    echo "otherwise all race to build it)." >&2
+    exit 1
+fi
 
+echo "Mode: $MODE    Action: $ACTION"
+echo
 for script in "${scripts[@]}"; do
     if [[ ! -f "$script" ]]; then
-        echo "Missing script: $script" >&2
-        exit 1
+        echo "Missing script: $script" >&2; exit 1
     fi
-
     if [[ "$ACTION" == "--run" ]]; then
         echo "qsub $script"
         qsub "$script"

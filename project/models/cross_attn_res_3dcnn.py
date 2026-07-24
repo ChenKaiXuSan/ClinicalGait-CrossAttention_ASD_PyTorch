@@ -67,7 +67,7 @@ class CrossAttentionRes3DCNN(nn.Module):
         for i, dim in enumerate(dim_list):
             if i in self.fusion_layers:
                 fusion = CrossAttentionFusion(dim, 1, dim, name=f"res{i+1}")
-                fusion.save_attn = True  # 如果需要可切换
+                fusion.save_attn = False  # 训练时关闭：每步把 THW×THW 矩阵拷到 CPU 太贵；可视化时再打开
                 self.attn_fusions.append(fusion)
             else:
                 self.attn_fusions.append(nn.Identity())

@@ -69,4 +69,5 @@ train:
   log_path: logs/train/${train.experiment}/${now:%Y-%m-%d}/${now:%H-%M-%S}
 
   fast_dev_run: False # if use the fast_dev_run
-  fold: 5 # the fold number of the cross validation
+  fold: 3 # the fold number of the cross validation
+  fold_idx: -1 # -1: train all folds serially; >=0: train only that fold (used by per-fold PBS array jobs)

@@ -23,7 +23,7 @@ Date      	By	Comments
 """
 
 
-import os, json, shutil, copy, random
+import os, json, shutil, copy, random, time
 from typing import Any, Dict, List, Tuple
 
 from imblearn.over_sampling import RandomOverSampler
@@ -55,6 +55,10 @@ class DefineCrossValidation(object):
 
         self.K: int = config.train.fold
         self.sampler: str = config.data.sampling  # data balance, [over, under, none]
+
+        # cache dir name includes K, so changing train.fold never silently
+        # reuses a split built with a different fold number.
+        self.cache_name: str = f"{self.sampler}_K{self.K}"
 
         self.class_num: int = config.model.model_class_num
         self.clip_duration: int = config.train.clip_duration
@@ -138,7 +142,7 @@ class DefineCrossValidation(object):
         temp_path = (
             self.gait_seg_idx_path
             / str(self.class_num)
-            / self.sampler
+            / self.cache_name
             / str(fold)
             / str(flag)
         )
@@ -301,68 +305,61 @@ class DefineCrossValidation(object):
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
 
-        target_path = self.gait_seg_idx_path / str(self.class_num) / self.sampler
+        target_path = self.gait_seg_idx_path / str(self.class_num) / self.cache_name
+        index_file = target_path / "index.json"
 
-        # * when json file changed, need to reprocess the dataset.
-        if not os.path.exists(target_path):
+        # * when json file changed, need to reprocess the dataset
+        # * (delete target_path to force a rebuild).
+        if not index_file.exists():
+            target_path.parent.mkdir(parents=True, exist_ok=True)
 
-            fold_dataset_idx, *_ = self.prepare()
+            # atomic mkdir acts as a build lock: with parallel per-fold PBS
+            # array jobs, only the first one builds the cache, the others wait.
+            try:
+                target_path.mkdir(exist_ok=False)
+                is_builder = True
+            except FileExistsError:
+                is_builder = False
 
-            json_fold_dataset_idx = copy.deepcopy(fold_dataset_idx)
+            if is_builder:
+                fold_dataset_idx, *_ = self.prepare()
 
-            for k, v in fold_dataset_idx.items():
+                json_fold_dataset_idx = copy.deepcopy(fold_dataset_idx)
 
-                # train mapping path, include the gait cycle index
-                train_mapping_idx = v[0]
-                json_fold_dataset_idx[k][0] = [str(i) for i in train_mapping_idx]
+                for k, v in fold_dataset_idx.items():
+                    # [0/1]: train/val mapping path (include the gait cycle index)
+                    # [2/3]: train/val video path
+                    json_fold_dataset_idx[k][0] = [str(i) for i in v[0]]
+                    json_fold_dataset_idx[k][1] = [str(i) for i in v[1]]
+                    json_fold_dataset_idx[k][2] = str(v[2])
+                    json_fold_dataset_idx[k][3] = str(v[3])
 
-                val_mapping_idx = v[1]
-                json_fold_dataset_idx[k][1] = [str(i) for i in val_mapping_idx]
+                # write via tmp file + atomic rename, so waiters never load a
+                # partially written index.json.
+                tmp_index = target_path / "index.json.tmp"
+                with open(tmp_index, "w") as f:
+                    json.dump(json_fold_dataset_idx, f, sort_keys=True, indent=4)
+                os.replace(tmp_index, index_file)
+            else:
+                waited = 0
+                while not index_file.exists():
+                    time.sleep(30)
+                    waited += 30
+                    if waited >= 4 * 3600:
+                        raise RuntimeError(
+                            f"Timed out waiting for fold cache: {index_file}. "
+                            f"If a previous build crashed, delete {target_path} and rerun, "
+                            "or pre-build once with: python -m project.prepare_folds"
+                        )
 
-                # train video path
-                train_video_idx = v[2]
-                json_fold_dataset_idx[k][2] = str(train_video_idx)
+        with open(index_file, "r") as f:
+            fold_dataset_idx = json.load(f)
 
-                # val video path
-                val_dataset_idx = v[3]
-                json_fold_dataset_idx[k][3] = str(val_dataset_idx)
-
-            with open(
-                (
-                    self.gait_seg_idx_path
-                    / str(self.class_num)
-                    / self.sampler
-                    / "index.json"
-                ),
-                "w",
-            ) as f:
-                json.dump(json_fold_dataset_idx, f, sort_keys=True, indent=4)
-
-        elif os.path.exists(target_path):
-            with open(target_path / "index.json", "r") as f:
-                fold_dataset_idx = json.load(f)
-
-            # unpack the
-            for k, v in fold_dataset_idx.items():
-                # train mapping, include the gait cycle index
-                train_mapping_idx = v[0]
-                fold_dataset_idx[k][0] = [Path(i) for i in train_mapping_idx]
-
-                # val mapping, include the gait cycle index
-                val_mapping_idx = v[1]
-                fold_dataset_idx[k][1] = [Path(i) for i in val_mapping_idx]
-
-                # train video path
-                train_video_idx = v[2]
-                fold_dataset_idx[k][2] = Path(train_video_idx)
-
-                # val video path
-                val_dataset_idx = v[3]
-                fold_dataset_idx[k][3] = Path(val_dataset_idx)
-
-        else:
-            raise ValueError(
-                "the gait seg idx path is not exist, please check the path."
-            )
+        # unpack: json strings back to Path. Keys are always str here.
+        for k, v in fold_dataset_idx.items():
+            fold_dataset_idx[k][0] = [Path(i) for i in v[0]]
+            fold_dataset_idx[k][1] = [Path(i) for i in v[1]]
+            fold_dataset_idx[k][2] = Path(v[2])
+            fold_dataset_idx[k][3] = Path(v[3])
 
         return fold_dataset_idx
