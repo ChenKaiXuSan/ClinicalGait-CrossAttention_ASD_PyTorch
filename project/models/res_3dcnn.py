@@ -71,6 +71,20 @@ class Res3DCNN(nn.Module):
         ckpt_path = getattr(hparams.model, "ckpt_path", "")
         self.model = init_slow_r50(ckpt_path, self.model_class_num)
 
+        if self.fuse_method == "concat":
+            # concat stacks video (3ch) + attn_map (1ch) on the channel dim, so
+            # the stem conv must accept 4 input channels (default stem is 3ch).
+            attn_ch = 1
+            stem = self.model.blocks[0].conv
+            self.model.blocks[0].conv = nn.Conv3d(
+                3 + attn_ch,
+                stem.out_channels,
+                kernel_size=stem.kernel_size,
+                stride=stem.stride,
+                padding=stem.padding,
+                bias=stem.bias is not None,
+            )
+
         if self.fuse_method == "late":
             self.late_fusion = LateFusionBlock(
                 in_dim=self.model_class_num,  # Input dimension from the main feature
