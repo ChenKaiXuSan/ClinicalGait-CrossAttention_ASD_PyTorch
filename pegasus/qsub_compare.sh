@@ -77,7 +77,11 @@ all_scripts=(
 # --- prebuild: build fold cache once ----------------------------------------
 if [[ "$MODE" == "prebuild" ]]; then
     echo "Building 3-fold cache (class_num=3, sampling=over, K=3)..."
+    # conda activate / module load internals trip errexit, nounset AND pipefail;
+    # relax all three around the source. prepare_folds below runs under strict mode.
+    set +euo pipefail
     source pegasus/setup_env.sh
+    set -euo pipefail
     python -m project.prepare_folds data.root_path="${ROOT_PATH}"
     echo "Cache ready: ${CACHE_INDEX}"
     exit 0
