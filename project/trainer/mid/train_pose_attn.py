@@ -334,8 +334,8 @@ class PoseAttnTrainer(LightningModule):
         labels: torch.Tensor = batch["label"].long()
         B = video.size(0)
 
-        out = self.model(video, attn_map, return_aux=False)
-        logits, aux = out
+        out = self.model(video, attn_map, return_aux=True)
+        logits, aux = out if isinstance(out, tuple) else (out, {"side_preds": []})
 
         attn_loss = self._compute_attn_losses(
             logits=logits,
