@@ -151,7 +151,32 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 | Fig. 6 | Per-class ROC / confusion matrix | pose_gated_full |
 | Fig. 7 | Gate/attention visualization case study | pose_gated_full checkpoint |
 
-## 六、遗留事项
+## 六、实验结论（2026-07-25，3-fold 有效重跑）
+
+> 这批是修复零 attn bug 后**第一次真正应用临床先验**的结果（旧的六月结果作废）。
+> 写入时 76/78 折完成；`cross_atn_L34`、`pose_gated_nobg` 各差 1 折，数值可能微调。
+> 均值为 3-fold（部分 std ±5-8%，小差异在噪声内）。acc = test/video_acc。
+
+### 主要发现
+
+1. **PoseGated 有效**：最优配置 **multi [0,1] = 88.3%**，比 RGB baseline（78.7%）高约 **10 个点**。临床先验价值成立。
+
+2. **⚠️ 预设的 "full" 配置在每个默认轴上都是次优的**（`pose_gated_full` = 全层[0-4] + bias2.0 + 全损失 = 仅 81.5%）：
+   - **融合层：less is more**。full [0-4]（81.5%）是所有 PoseGated 配置里最差；只融合浅两层 [0,1]（88.3%）最好。single 层 L3/L4 也达 87%。
+   - **辅助损失反而有害**：去 bg loss（87.8%，⧗2/3）、去 tmp loss（84.6%）均显著优于完整（81.5%）。
+   - **gate bias**：0.0（84.8%）> -1.0（82.6%）> 2.0/full（81.5%）。默认 2.0 最差。
+   - **side head 近中性**：去掉后 80.8% vs 81.5%，在噪声内。
+
+3. **A1 融合方法对比**（各方法最优点）：PoseGated（88.3%）> early concat（84.3%）> early add（80.5%）≈ cross L4（79.6%）≈ SE（~79%）> early mul（77.2%）。
+
+### 论文写作建议
+
+- **主结果不要报 `pose_gated_full`**，应报**经验最优配置**（multi [0,1] 或 single L3）。
+- A2/A4/A5 消融恰好构成"如何注入先验"的分析：**浅层融合、少辅助损失、中性门控**最好。
+- `run_train_pose_gated_bestcombo.sh`（multi[0,1] + bias0 + 去 bg/tmp）已提交，验证叠加增益——但这是 **post-hoc 组合**，报告时须说明，不能替代独立消融。
+
+## 七、遗留事项
 
 1. skeleton-only baseline（仅骨架输入）仍未实现，需要 dataloader/model 支持后另开脚本。
 2. `analysis/` 的画图 notebook 需要适配新的 `_f{fold}` 日志目录命名（glob `<tag>_f*`）。
+3. baseline trainer 的 metrics 键名带 `_epoch`（`test/video_acc_epoch`），其他 trainer 是 `test/video_acc`；聚合脚本需兼容两种（`attention_alignment.py` 之外的汇总代码注意）。
