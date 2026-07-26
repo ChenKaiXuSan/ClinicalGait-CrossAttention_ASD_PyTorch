@@ -131,3 +131,4 @@ MNIST
 logs/
 checkpoints/
 logs-bak/
+analysis/alignment_out/alignment_per_record.csv

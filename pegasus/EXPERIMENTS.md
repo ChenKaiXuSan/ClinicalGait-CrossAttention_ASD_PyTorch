@@ -176,6 +176,20 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 - A2/A4/A5 消融恰好构成"如何注入先验"的分析：**浅层融合、少辅助损失、中性门控**最好。
 - `run_train_pose_gated_bestcombo.sh`（multi[0,1] + bias0 + 去 bg/tmp）结果 **86.7 ± 5.1**，**未超过单独的 multi[0,1]（88.3%）**——per-ablation 最优不叠加。结论：**融合层选择是主导因素**，层选对后 bias/损失改动不再有增益（它们在 full 上"有效"只是因为 full 被过多融合层拖累）。故主结果直接用 **multi[0,1]**，无需 bestcombo。（全数据 3-fold，78/78 原矩阵 + 3/3 bestcombo 已完成。）
 
+### 可解释性对齐（注意力 vs 医生标注，→ Fig. 7）
+
+由 `analysis/attention_alignment.py` 在主推方法 `pose_atn_multi_P1` 各折最优 ckpt 上、对**留出患者**测试集计算 side-head 热图与医生标注 ROI 的对齐度（3-fold；输出 `analysis/alignment_out/`，summary 已入库，per-record 25MB 不入库、`python -m analysis.attention_alignment +align.run_glob='logs/train/pose_atn_multi_P1_f*'` 可重跑）。
+
+| side-head 层 | CC ↑ | NSS ↑ | PG ↑ | AUC ↑ | Dice ↑ |
+|---|---|---|---|---|---|
+| **L3（最深）** | **0.71–0.76** | **2.8–3.0** | **1.00** | ~1.00 | 0.47–0.51 |
+| L0–L2 | 0.43–0.53 | 1.5–2.0 | 1.00 | ~1.00 | 0.41–0.52 |
+
+（ASD/DHS/LCS_HipOA 三类高度一致）
+
+- **结论**：模型注意力可靠定位到医生标注 ROI（PG=1.00 全命中、AUC≈0.998、NSS≈2–3、深层 CC 达 0.76），且**深层 L3 对齐最强**。
+- **⚠️ caveat（须写进论文）**：side head 由医生标注直接监督（attn_loss = BCE+Dice），故高对齐主要证明**临床先验被忠实学习并泛化到留出患者**（保真度叙事），而非模型自发发现正确关节。更强论证需加对照组：`pose_gated_noside`（去 attn 监督）的对齐度应大幅下降——其 ckpt 已有，可对它再跑一次 alignment。
+
 ## 七、遗留事项
 
 1. skeleton-only baseline（仅骨架输入）仍未实现，需要 dataloader/model 支持后另开脚本。
