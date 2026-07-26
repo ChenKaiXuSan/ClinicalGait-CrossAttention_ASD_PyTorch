@@ -154,8 +154,9 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 ## 六、实验结论（2026-07-25，3-fold 有效重跑）
 
 > 这批是修复零 attn bug 后**第一次真正应用临床先验**的结果（旧的六月结果作废）。
-> 写入时 76/78 折完成；`cross_atn_L34`、`pose_gated_nobg` 各差 1 折，数值可能微调。
+> **已全部完成：原矩阵 78/78 折（26 方法）+ bestcombo 3/3。**
 > 均值为 3-fold（部分 std ±5-8%，小差异在噪声内）。acc = test/video_acc。
+> 完整汇总见 `analysis/results_summary.md` / `.csv`（由 `python -m analysis.export_results` 生成）。
 
 ### 主要发现
 
