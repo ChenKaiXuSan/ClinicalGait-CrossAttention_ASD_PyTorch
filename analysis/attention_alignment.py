@@ -239,8 +239,10 @@ def evaluate_alignment(config) -> "pd.DataFrame":  # noqa: F821
     fold_dataset_idx = DefineCrossValidation(config)()
     records: List[Dict] = []
 
-    for fold in fold_dataset_idx.keys():
-        fold = int(fold)
+    for fold_key in fold_dataset_idx.keys():
+        # keys are strings ("0","1","2") when loaded from the JSON fold cache;
+        # keep the original key for indexing, use int only for ckpt lookup/labels.
+        fold = int(fold_key)
         run_dir = _resolve_run_dir(run_glob, fold)
         if run_dir is None:
             logger.warning(f"[fold {fold}] no run dir with checkpoints under {run_glob}; skipped")
@@ -254,7 +256,7 @@ def evaluate_alignment(config) -> "pd.DataFrame":  # noqa: F821
         module = PoseAttnTrainer.load_from_checkpoint(ckpt, map_location=device)
         module.eval().to(device)
 
-        dm = WalkDataModule(config, fold_dataset_idx[fold])
+        dm = WalkDataModule(config, fold_dataset_idx[fold_key])
         dm.setup("test")
 
         with torch.no_grad():
