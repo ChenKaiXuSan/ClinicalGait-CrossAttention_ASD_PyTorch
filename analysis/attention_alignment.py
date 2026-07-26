@@ -53,8 +53,9 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# ROI binarization threshold on the (soft) doctor heatmap, and top-k fraction
-# for the overlap metrics. Both are reported so the numbers are reproducible.
+# ROI threshold as a FRACTION of each doctor map's own peak (scale-invariant;
+# see _roi_mask), and top-k fraction for the overlap metrics. Both reported for
+# reproducibility.
 ROI_THR = 0.5
 TOPK_FRAC = 0.20
 EPS = 1e-8
@@ -66,6 +67,20 @@ EPS = 1e-8
 
 def _flat(sal: np.ndarray, doc: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return np.asarray(sal, np.float64).ravel(), np.asarray(doc, np.float64).ravel()
+
+
+def _roi_mask(d: np.ndarray, frac: float) -> np.ndarray:
+    """Binary ROI = pixels above `frac` of the map's OWN peak (scale-invariant).
+
+    The doctor heatmap is a soft Gaussian whose absolute peak shrinks after
+    trilinear resize to low-res side-head dims, so an absolute threshold (e.g.
+    >0.5) can yield an empty ROI. Thresholding relative to the per-map max keeps
+    the ROI = the annotated joint neighborhood regardless of scale.
+    """
+    mx = float(d.max()) if d.size else 0.0
+    if mx <= EPS:
+        return np.zeros_like(d, dtype=bool)
+    return d > frac * mx
 
 
 def cc(sal: np.ndarray, doc: np.ndarray) -> float:
@@ -86,7 +101,7 @@ def nss(sal: np.ndarray, doc: np.ndarray, roi_thr: float = ROI_THR) -> float:
     if std < EPS:
         return 0.0
     s = (s - s.mean()) / std
-    roi = d > roi_thr
+    roi = _roi_mask(d, roi_thr)
     if roi.sum() == 0:
         return float("nan")
     return float(s[roi].mean())
@@ -95,7 +110,7 @@ def nss(sal: np.ndarray, doc: np.ndarray, roi_thr: float = ROI_THR) -> float:
 def pointing_game(sal: np.ndarray, doc: np.ndarray, roi_thr: float = ROI_THR) -> Optional[float]:
     """1.0 if the saliency peak lands on an ROI pixel, else 0.0 (per-map hit)."""
     s, d = _flat(sal, doc)
-    roi = d > roi_thr
+    roi = _roi_mask(d, roi_thr)
     if roi.sum() == 0:
         return None  # no ROI in this frame/joint -> excluded from the hit-rate
     return float(roi[int(np.argmax(s))])
@@ -104,7 +119,7 @@ def pointing_game(sal: np.ndarray, doc: np.ndarray, roi_thr: float = ROI_THR) ->
 def auc_judd(sal: np.ndarray, doc: np.ndarray, roi_thr: float = ROI_THR) -> float:
     """AUC with ROI pixels as positives; rank-based (Mann-Whitney) exact AUC."""
     s, d = _flat(sal, doc)
-    pos = d > roi_thr
+    pos = _roi_mask(d, roi_thr)
     n_pos = int(pos.sum())
     n_neg = int((~pos).sum())
     if n_pos == 0 or n_neg == 0:
@@ -126,7 +141,7 @@ def topk_overlap(sal: np.ndarray, doc: np.ndarray, k: float = TOPK_FRAC,
                  roi_thr: float = ROI_THR) -> Tuple[float, float]:
     """IoU and soft-Dice between the top-k% saliency mask and the ROI mask."""
     s, d = _flat(sal, doc)
-    roi = d > roi_thr
+    roi = _roi_mask(d, roi_thr)
     if roi.sum() == 0:
         return float("nan"), float("nan")
     n_top = max(1, int(round(k * s.size)))
