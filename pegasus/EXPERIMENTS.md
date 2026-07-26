@@ -163,7 +163,7 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 
 2. **⚠️ 预设的 "full" 配置在每个默认轴上都是次优的**（`pose_gated_full` = 全层[0-4] + bias2.0 + 全损失 = 仅 81.5%）：
    - **融合层：less is more**。full [0-4]（81.5%）是所有 PoseGated 配置里最差；只融合浅两层 [0,1]（88.3%）最好。single 层 L3/L4 也达 87%。
-   - **辅助损失反而有害**：去 bg loss（87.8%，⧗2/3）、去 tmp loss（84.6%）均显著优于完整（81.5%）。
+   - **辅助损失反而有害**：去 bg loss（85.4%）、去 tmp loss（84.6%）均优于完整（81.5%）。
    - **gate bias**：0.0（84.8%）> -1.0（82.6%）> 2.0/full（81.5%）。默认 2.0 最差。
    - **side head 近中性**：去掉后 80.8% vs 81.5%，在噪声内。
 
@@ -173,7 +173,7 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 
 - **主结果不要报 `pose_gated_full`**，应报**经验最优配置**（multi [0,1] 或 single L3）。
 - A2/A4/A5 消融恰好构成"如何注入先验"的分析：**浅层融合、少辅助损失、中性门控**最好。
-- `run_train_pose_gated_bestcombo.sh`（multi[0,1] + bias0 + 去 bg/tmp）已提交，验证叠加增益——但这是 **post-hoc 组合**，报告时须说明，不能替代独立消融。
+- `run_train_pose_gated_bestcombo.sh`（multi[0,1] + bias0 + 去 bg/tmp）结果 **86.7 ± 5.1**，**未超过单独的 multi[0,1]（88.3%）**——per-ablation 最优不叠加。结论：**融合层选择是主导因素**，层选对后 bias/损失改动不再有增益（它们在 full 上"有效"只是因为 full 被过多融合层拖累）。故主结果直接用 **multi[0,1]**，无需 bestcombo。（全数据 3-fold，78/78 原矩阵 + 3/3 bestcombo 已完成。）
 
 ## 七、遗留事项
 
