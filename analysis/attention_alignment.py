@@ -202,14 +202,17 @@ def _find_best_ckpt(run_dir: str, fold: int) -> Optional[str]:
 def _resolve_run_dir(run_glob: str, fold: int) -> Optional[str]:
     """Find the run directory holding this fold's checkpoints.
 
-    `run_glob` may point at a per-fold experiment tree (e.g.
-    'logs/train/pose_gated_full_f*/**'); we keep only dirs that actually contain
-    checkpoints/fold_<fold>/, then take the most recently modified one.
+    `run_glob` is a tag-level glob (e.g. 'logs/train/pose_atn_multi_P1_f*',
+    optionally ending in '/**'). Run dirs live at <tag>/<date>/<time>/, so we
+    glob only that level — NOT a recursive '**' walk, which would enumerate every
+    tb-event / CAM-dump file under the tree and hang. Keep dirs that actually
+    contain checkpoints/fold_<fold>/, then take the most recently modified one.
     """
-    matches = []
-    for d in glob.glob(run_glob, recursive=True):
-        if os.path.isdir(os.path.join(d, "checkpoints", f"fold_{fold}")):
-            matches.append(d)
+    base = run_glob.split("/**")[0].rstrip("/")   # strip trailing /** if present
+    matches = [
+        d for d in glob.glob(os.path.join(base, "*", "*"))
+        if os.path.isdir(os.path.join(d, "checkpoints", f"fold_{fold}"))
+    ]
     if not matches:
         return None
     return max(matches, key=os.path.getmtime)
