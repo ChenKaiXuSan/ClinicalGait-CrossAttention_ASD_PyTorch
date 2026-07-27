@@ -1,9 +1,11 @@
 %% Medical Image Analysis (Elsevier) manuscript.
 %% Uses Elsevier's official `elsarticle` document class (the class MIA requires).
 %% Compile on Overleaf (elsarticle is built in) or TeXLive:  latexmk -pdf main.tex
-%% Reference style: elsarticle-num (numbered). See paper/README.md.
+%% MIA uses AUTHOR-YEAR (Harvard) references -> elsarticle `authoryear` option
+%% + elsarticle-harv.bst, with \citep/\citet. See paper/README.md.
+%% MIA review is single-anonymized: author names are kept (not double-blind).
 
-\documentclass[review,5p,times]{elsarticle}
+\documentclass[review,authoryear,5p,times]{elsarticle}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
@@ -111,7 +113,7 @@ analysis showing the supervised attention faithfully localises the clinical ROI.
 
 Video-based gait analysis with 3D CNNs and transformers has been applied to
 clinical motion assessment; two-stream and phase-aware fusion of periodic gait
-signals are common~\cite{chen2023two,chen2024phasemix}. Attention and
+signals are common~\citep{chen2023two,chen2024phasemix}. Attention and
 squeeze-and-excitation modules re-weight spatio-temporal features but are
 typically unsupervised. Our work differs in supervising attention against
 explicit clinical ROI annotations and in systematically studying \emph{where}
@@ -188,7 +190,7 @@ We report video-level accuracy (mean\,$\pm$\,std over the 3 folds) and macro
 $F_1$. For interpretability we compare each side head's predicted heat map with
 the doctor ROI on the held-out test patients using standard saliency-evaluation
 metrics: correlation coefficient (CC), normalized scanpath saliency (NSS),
-pointing game (PG), AUC-Judd, and top-$20\%$ Dice~\cite{bylinskii2019metrics}.
+pointing game (PG), AUC-Judd, and top-$20\%$ Dice~\citep{bylinskii2019metrics}.
 
 %============================================================
 \section{Results}
@@ -380,19 +382,22 @@ This work was supported by [FUNDING SOURCE, grant number XXXX].
 \section*{Data availability}
 The gait dataset is not publicly available due to ethical and privacy constraints
 on patient video. Anonymized data may be available from the corresponding author
-on reasonable request, subject to institutional approval.
+on reasonable request, subject to institutional approval. The training and
+analysis code is available at [REPOSITORY URL].
 
-\section*{Declaration of generative AI and AI-assisted technologies}
-During the preparation of this work the author(s) used [TOOL/SERVICE] in order to
-[REASON, e.g.\ language editing and/or code and analysis assistance]. After using
-this tool/service, the author(s) reviewed and edited the content as needed and
-take(s) full responsibility for the content of the publication.
+\section*{Declaration of generative AI and AI-assisted technologies in the manuscript preparation process}
+During the preparation of this work the author(s) used [AI TOOL/SERVICE, e.g.\
+a large language model] for assistance with code development, experiment
+orchestration, results aggregation, and drafting/language editing. After using
+this tool/service, the author(s) reviewed and edited all content, verified every
+reported number against the experiment logs, and checked all references; the
+author(s) take(s) full responsibility for the content of the publication.
 
 \section*{Acknowledgements}
 [Acknowledgements, or ``Removed for double-anonymized review.'']
 
 %============================================================
-\bibliographystyle{elsarticle-num}
+\bibliographystyle{elsarticle-harv}
 \bibliography{refs}
 
 \end{document}
