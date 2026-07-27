@@ -53,15 +53,14 @@ demonstrating that the clinical prior is faithfully learned and generalises to
 unseen patients.
 \end{abstract}
 
+% Highlights: 3-5 items, each <= 85 characters incl. spaces, minimal acronyms
+% (per Elsevier author guidelines).
 \begin{highlights}
-\item PoseGated fuses gait RGB video with doctor-annotated attention maps by
-      channel-wise gating.
-\item $88.3\%$ 3-class accuracy vs.\ $78.7\%$ RGB-only baseline on
-      patient-grouped 3-fold CV.
-\item Ablations show shallow fusion is best; fusing at all stages is worst.
-\item Auxiliary bg/temporal losses and RGB-biased gate init reduce accuracy.
-\item Attention localises the clinical ROI on held-out patients (pointing game
-      $1.00$).
+\item A gait video classifier fuses walking video with expert joint attention maps.
+\item Accuracy on three spinal conditions rises from 79\% to 88\% over a video-only model.
+\item Shallow fusion works best; injecting the prior at every stage works worst.
+\item Extra auxiliary losses and a strong gate bias reduce accuracy.
+\item The learned attention reliably lands on the regions the surgeons annotated.
 \end{highlights}
 
 \begin{keyword}
@@ -354,9 +353,45 @@ shows that a shallow, lightly-supervised injection is optimal and that the commo
 expect to transfer to other clinical-prior fusion problems.
 
 %============================================================
-\section*{Acknowledgements}
-Removed for review.
+% Required Elsevier declarations. Fill the [BRACKETED] placeholders before
+% submission; keep or remove sections per the journal's requirements.
 
+\section*{Ethics statement}
+This retrospective study of patient gait video was reviewed and approved by
+[INSTITUTIONAL REVIEW BOARD / ETHICS COMMITTEE], approval number [XXXX].
+All participants provided informed consent for the recording and research use of
+their gait videos.
+
+\section*{CRediT authorship contribution statement}
+\textbf{Kaixu Chen:} Conceptualization, Methodology, Software, Formal analysis,
+Investigation, Writing -- original draft, Visualization.
+\textbf{[Co-author]:} [Contributions per the CRediT taxonomy].
+
+\section*{Declaration of competing interest}
+The authors declare that they have no known competing financial interests or
+personal relationships that could have appeared to influence the work reported in
+this paper.
+
+\section*{Funding}
+This work was supported by [FUNDING SOURCE, grant number XXXX].
+% or: This research did not receive any specific grant from funding agencies in
+% the public, commercial, or not-for-profit sectors.
+
+\section*{Data availability}
+The gait dataset is not publicly available due to ethical and privacy constraints
+on patient video. Anonymized data may be available from the corresponding author
+on reasonable request, subject to institutional approval.
+
+\section*{Declaration of generative AI and AI-assisted technologies}
+During the preparation of this work the author(s) used [TOOL/SERVICE] in order to
+[REASON, e.g.\ language editing and/or code and analysis assistance]. After using
+this tool/service, the author(s) reviewed and edited the content as needed and
+take(s) full responsibility for the content of the publication.
+
+\section*{Acknowledgements}
+[Acknowledgements, or ``Removed for double-anonymized review.'']
+
+%============================================================
 \bibliographystyle{elsarticle-num}
 \bibliography{refs}
 
