@@ -225,7 +225,7 @@ Among fusion families, PoseGated is strongest, followed by early concatenation
 ($84.3\%$); squeeze-and-excitation and cross-attention cluster around
 $78\!-\!80\%$, and early element-wise multiplication is weakest ($77.2\%$). The
 clinical-prior gating thus adds more than the input-level or unsupervised
-attention alternatives.
+attention alternatives (Fig.~\ref{fig:methods}).
 
 \subsection{Where and how much to fuse (A5)}
 \label{sec:layers}
@@ -234,7 +234,7 @@ deeper stages ($L3$: $87.5\%$, $L4$: $87.0\%$) already rivals the best model, bu
 for the cumulative \emph{multi} variant \emph{less is more}: shallow
 $[0,1]$ ($88.3\%$) is best and accuracy \emph{decreases} as more stages are
 fused, with all-stage fusion $[0\!-\!4]$ the weakest PoseGated variant
-($81.5\%$).
+($81.5\%$; Fig.~\ref{fig:layers}).
 
 \begin{table}[t]
 \centering
@@ -254,7 +254,7 @@ $[4]$ & $87.0\pm5.6$ &                &              \\
 \end{table}
 
 \subsection{Gate initialisation and auxiliary losses (A2--A4)}
-All ablations in Table~\ref{tab:ablation} are single-variable changes from the
+All ablations in Table~\ref{tab:ablation} and Fig.~\ref{fig:ablation} are single-variable changes from the
 all-stage ``full'' configuration ($81.5\%$). A neutral gate initialisation
 ($b{=}0$, $84.8\%$) beats the default RGB-biased $b{=}2.0$; removing the
 background loss ($85.4\%$) or the temporal-smoothness loss ($84.6\%$) both
@@ -285,7 +285,7 @@ fusion-location choice dominates.
 
 \subsection{Interpretability: attention vs.\ clinical ROI}
 \label{sec:interp}
-Table~\ref{tab:align} quantifies, on held-out test patients, how well the
+Table~\ref{tab:align} and Fig.~\ref{fig:align_fig} quantify, on held-out test patients, how well the
 supervised side-head attention of the main model (multi-$[0,1]$) matches the
 doctor ROI. The attention peak lands inside the clinical ROI in essentially every
 frame (PG $=1.00$), the ranking of ROI pixels is near-perfect (AUC $\approx
@@ -306,6 +306,44 @@ $L0\!-\!L2$    & $0.43\!-\!0.53$ & $1.5\!-\!2.0$ & $1.00$ & ${\approx}1.00$ & $0
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\linewidth]{figures/fig_methods.pdf}
+\caption{Fusion-method comparison (best per family). PoseGated (blue) exceeds the
+RGB-only baseline (grey) and all competing fusion mechanisms. Bars show
+mean$\,\pm\,$std over patient-grouped 3-fold cross-validation.}
+\label{fig:methods}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.6\linewidth]{figures/fig_layers.pdf}
+\caption{Effect of fusion location and depth. For the cumulative \emph{multi}
+variant, accuracy peaks at shallow $[0,1]$ and decreases as more stages are
+fused; all-stage fusion is the weakest. A single deep injection ($L3$/$L4$) is
+also strong.}
+\label{fig:layers}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.58\linewidth]{figures/fig_ablation.pdf}
+\caption{Gate-bias and loss/component ablations relative to the all-stage
+``full'' model (dashed line). Green bars exceed the full reference: a neutral
+gate bias and removing the background or temporal-smoothness loss all improve
+accuracy.}
+\label{fig:ablation}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.6\linewidth]{figures/fig_alignment.pdf}
+\caption{Interpretability: correlation (CC) between the side-head attention and
+the clinical ROI on held-out patients, by side-head stage and diagnostic class.
+Alignment is highest at the deepest side head.}
+\label{fig:align_fig}
+\end{figure}
 
 %============================================================
 \section{Discussion}

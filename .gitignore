@@ -141,3 +141,4 @@ paper/*.pdf
 paper/*.spl
 paper/*.fdb_latexmk
 paper/*.fls
+paper/figures/*.png
