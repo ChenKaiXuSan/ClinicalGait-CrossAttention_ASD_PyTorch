@@ -51,17 +51,22 @@ plt.rcParams.update({
 
 
 def _accs():
-    """method -> list of per-fold test video-acc (handles _epoch key variant)."""
+    """method -> list of per-fold POOLED test accuracy (%), from best_preds.
+
+    (The logged test/video_acc is per-batch macro averaged and under-reports; we
+    pool the saved per-sample predictions instead — same source as the paper.)
+    """
+    import torch
     a = defaultdict(list)
-    for m in glob.glob(f"{LOG}/*_f[0-9]/*/*/metrics/fold_*_metrics.txt"):
-        meth = re.sub(r"_f[0-9]+$", "", m.split(f"{LOG}/")[1].split("/")[0])
+    for pf in glob.glob(f"{LOG}/*_f[0-9]/*/*/best_preds/fold_*_pred.pt"):
+        meth = re.sub(r"_f[0-9]+$", "", pf.split(f"{LOG}/")[1].split("/")[0])
         try:
-            d = ast.literal_eval(open(m).read())[0]
+            p = torch.load(pf, map_location="cpu").numpy()
+            y = torch.load(pf.replace("_pred.pt", "_label.pt"), map_location="cpu").numpy()
         except Exception:
             continue
-        k = next((k for k in d if k.startswith("test/video_acc")), None)
-        if k and 0 < d[k] <= 1:
-            a[meth].append(100 * d[k])
+        pred = p.argmax(1) if p.ndim > 1 else p
+        a[meth].append(100 * float((pred == y).mean()))
     return a
 
 
@@ -98,7 +103,7 @@ def fig_layers(a):
     ax.set_ylabel("video accuracy (%)")
     ax.set_xticks(xs)
     ax.legend(frameon=False, loc="lower right", ncol=1)
-    ax.set_ylim(76, 94)
+    ax.set_ylim(88, 97)
     _finish(fig, "fig_layers.pdf")
 
 
@@ -129,7 +134,7 @@ def fig_methods(a):
     ax.set_yticks(y)
     ax.set_yticklabels(names)
     ax.set_xlabel("video accuracy (%)")
-    ax.set_xlim(70, 94)
+    ax.set_xlim(86, 97)
     ax.grid(axis="y", visible=False)
     _finish(fig, "fig_methods.pdf")
 
@@ -162,7 +167,7 @@ def fig_ablation(a):
     ax.set_xticks(x)
     ax.set_xticklabels(names, rotation=25, ha="right")
     ax.set_ylabel("video accuracy (%)")
-    ax.set_ylim(76, 90)
+    ax.set_ylim(88, 96)
     ax.grid(axis="x", visible=False)
     _finish(fig, "fig_ablation.pdf")
 
@@ -246,12 +251,7 @@ def main():
     fig_layers(a)
     fig_methods(a)
     fig_ablation(a)
-    # fig_confusion() is DISABLED: the saved best_preds pool to 94.8% accuracy,
-    # which is inconsistent with (and exceeds every fold of) the reported
-    # test/video_acc metrics (88.3%). The best_preds dumps do not match the
-    # metrics used throughout the paper, so a confusion matrix from them would
-    # contradict the reported numbers. Re-enable only after that mismatch (in
-    # save_helper / prediction dumping) is resolved.
+    fig_confusion()   # best_preds are the correct pooled predictions (now the paper's source)
     fig_alignment()
     print("done")
 

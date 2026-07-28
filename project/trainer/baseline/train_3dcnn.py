@@ -60,7 +60,7 @@ class Res3DCNNTrainer(LightningModule):
         # save the hyperparameters to the file and ckpt
         self.save_hyperparameters()
 
-        self._accuracy = MulticlassAccuracy(num_classes=self.num_classes)
+        self._accuracy = MulticlassAccuracy(num_classes=self.num_classes, average="micro")  # micro+batch-weight = pooled acc (macro-per-batch under-reports)
         self._precision = MulticlassPrecision(num_classes=self.num_classes)
         self._recall = MulticlassRecall(num_classes=self.num_classes)
         self._f1_score = MulticlassF1Score(num_classes=self.num_classes)

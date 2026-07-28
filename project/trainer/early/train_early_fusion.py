@@ -52,7 +52,7 @@ class EarlyFusion3DCNNTrainer(LightningModule):
         # Res3DCNN with fuse_method=add/mul/concat/avg (fusion done inside forward)
         self.model = select_model(hparams)
 
-        self._accuracy = MulticlassAccuracy(num_classes=self.num_classes)
+        self._accuracy = MulticlassAccuracy(num_classes=self.num_classes, average="micro")  # micro+batch-weight = pooled acc (macro-per-batch under-reports)
         self._precision = MulticlassPrecision(num_classes=self.num_classes)
         self._recall = MulticlassRecall(num_classes=self.num_classes)
         self._f1_score = MulticlassF1Score(num_classes=self.num_classes)

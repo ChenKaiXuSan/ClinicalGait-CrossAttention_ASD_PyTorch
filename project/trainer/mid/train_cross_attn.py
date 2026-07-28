@@ -55,7 +55,7 @@ class CrossAttentionTrainer(LightningModule):
         self.model = CrossAttentionRes3DCNN(hparams)
 
         # metrics（torchmetrics 多数支持 logits/probs，内部会做 argmax）
-        self._accuracy = MulticlassAccuracy(num_classes=self.num_classes)
+        self._accuracy = MulticlassAccuracy(num_classes=self.num_classes, average="micro")  # micro+batch-weight = pooled acc (macro-per-batch under-reports)
         self._precision = MulticlassPrecision(num_classes=self.num_classes)
         self._recall = MulticlassRecall(num_classes=self.num_classes)
         self._f1_score = MulticlassF1Score(num_classes=self.num_classes)

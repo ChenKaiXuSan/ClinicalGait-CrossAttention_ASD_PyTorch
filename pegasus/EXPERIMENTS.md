@@ -155,26 +155,26 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 
 > 这批是修复零 attn bug 后**第一次真正应用临床先验**的结果（旧的六月结果作废）。
 > **已全部完成：原矩阵 78/78 折（26 方法）+ bestcombo 3/3。**
-> 均值为 3-fold（部分 std ±5-8%，小差异在噪声内）。acc = test/video_acc。
+> 均值为 3-fold（std ±2-6%，小差异在噪声内）。acc = **pooled** 准确率（从 best_preds 汇总；日志里的 test/video_acc 是 per-batch macro 平均、系统性偏低约 6-9 点，已弃用）。
 > 完整汇总见 `analysis/results_summary.md` / `.csv`（由 `python -m analysis.export_results` 生成）。
 
 ### 主要发现
 
-1. **PoseGated 有效**：最优配置 **multi [0,1] = 88.3%**，比 RGB baseline（78.7%）高约 **10 个点**。临床先验价值成立。
+1. **PoseGated 有效**：最优配置 **multi [0,1] = 94.8%**，比 RGB baseline（90.7%）高约 **4 个点**。临床先验价值成立。
 
-2. **⚠️ 预设的 "full" 配置在每个默认轴上都是次优的**（`pose_gated_full` = 全层[0-4] + bias2.0 + 全损失 = 仅 81.5%）：
-   - **融合层：less is more**。full [0-4]（81.5%）是所有 PoseGated 配置里最差；只融合浅两层 [0,1]（88.3%）最好。single 层 L3/L4 也达 87%。
-   - **辅助损失反而有害**：去 bg loss（85.4%）、去 tmp loss（84.6%）均优于完整（81.5%）。
-   - **gate bias**：0.0（84.8%）> -1.0（82.6%）> 2.0/full（81.5%）。默认 2.0 最差。
-   - **side head 近中性**：去掉后 80.8% vs 81.5%，在噪声内。
+2. **⚠️ 预设的 "full" 配置在每个默认轴上都是次优的**（`pose_gated_full` = 全层[0-4] + bias2.0 + 全损失 = 仅 90.9%）：
+   - **融合层：less is more**。full [0-4]（90.9%）是所有 PoseGated 配置里最差；只融合浅两层 [0,1]（94.8%）最好。single 层 L3/L4 也达 93-94%。
+   - **辅助损失反而有害**：去 bg loss（93.7%）、去 tmp loss（93.3%）均优于完整（90.9%）。
+   - **gate bias**：0.0（92.2%）最好;-1.0（90.7%）与 2.0/full（90.9%）相近。默认的强 RGB 偏置(2.0)非最优。
+   - **side head 近中性**：去掉后 90.8% vs 90.9%，在噪声内。
 
-3. **A1 融合方法对比**（各方法最优点）：PoseGated（88.3%）> early concat（84.3%）> early add（80.5%）≈ cross L4（79.6%）≈ SE（~79%）> early mul（77.2%）。
+3. **A1 融合方法对比**（各方法最优点）：PoseGated（94.8%）> early concat（93.7%）> SE(~91-92%) ≈ early add（91.7%）≈ cross（~90%）> early mul（89.3%）。
 
 ### 论文写作建议
 
 - **主结果不要报 `pose_gated_full`**，应报**经验最优配置**（multi [0,1] 或 single L3）。
 - A2/A4/A5 消融恰好构成"如何注入先验"的分析：**浅层融合、少辅助损失、中性门控**最好。
-- `run_train_pose_gated_bestcombo.sh`（multi[0,1] + bias0 + 去 bg/tmp）结果 **86.7 ± 5.1**，**未超过单独的 multi[0,1]（88.3%）**——per-ablation 最优不叠加。结论：**融合层选择是主导因素**，层选对后 bias/损失改动不再有增益（它们在 full 上"有效"只是因为 full 被过多融合层拖累）。故主结果直接用 **multi[0,1]**，无需 bestcombo。（全数据 3-fold，78/78 原矩阵 + 3/3 bestcombo 已完成。）
+- `run_train_pose_gated_bestcombo.sh`（multi[0,1] + bias0 + 去 bg/tmp）结果 **94.8 ± 2.8**，**未超过单独的 multi[0,1]（94.8%）**——per-ablation 最优不叠加。结论：**融合层选择是主导因素**，层选对后 bias/损失改动不再有增益（它们在 full 上"有效"只是因为 full 被过多融合层拖累）。故主结果直接用 **multi[0,1]**，无需 bestcombo。（全数据 3-fold，78/78 原矩阵 + 3/3 bestcombo 已完成。）
 
 ### 可解释性对齐（注意力 vs 医生标注，→ Fig. 7）
 

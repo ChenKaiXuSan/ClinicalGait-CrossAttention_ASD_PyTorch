@@ -41,7 +41,7 @@ gait classifier that fuses RGB video with doctor-annotated region-of-interest
 (ROI) attention maps derived from body keypoints, using a channel-wise gated
 mechanism and per-joint side-head supervision against the clinical annotations.
 On a three-way ASD/DHS/LCS-HipOA gait dataset (patient-grouped 3-fold
-cross-validation), PoseGated reaches $88.3\%$ video accuracy versus $78.7\%$ for
+cross-validation), PoseGated reaches $94.8\%$ video accuracy versus $90.7\%$ for
 an RGB-only 3D-CNN baseline, and outperforms early, squeeze-and-excitation, and
 QKV cross-attention fusion. A systematic ablation over \emph{where} and
 \emph{how much} to inject the prior yields a clear and somewhat counter-intuitive
@@ -59,7 +59,7 @@ unseen patients.
 % (per Elsevier author guidelines).
 \begin{highlights}
 \item A gait video classifier fuses walking video with expert joint attention maps.
-\item Accuracy on three spinal conditions rises from 79\% to 88\% over a video-only model.
+\item Accuracy on three spinal conditions rises from 91\% to 95\% over a video-only model.
 \item Shallow fusion works best; injecting the prior at every stage works worst.
 \item Extra auxiliary losses and a strong gate bias reduce accuracy.
 \item The learned attention reliably lands on the regions the surgeons annotated.
@@ -199,7 +199,7 @@ pointing game (PG), AUC-Judd, and top-$20\%$ Dice~\citep{bylinskii2019metrics}.
 \subsection{Main comparison}
 Table~\ref{tab:main} reports the RGB-only baseline, the strongest configuration
 of each competing fusion mechanism, and PoseGated. PoseGated's best
-configuration (shallow \emph{multi}-$[0,1]$) reaches $88.3\%$, about $9.6$ points
+configuration (shallow \emph{multi}-$[0,1]$) reaches $94.8\%$, about $4.1$ points
 above the RGB-only baseline and above all competing fusion families.
 
 \begin{table}[t]
@@ -211,30 +211,30 @@ above the RGB-only baseline and above all competing fusion families.
 \toprule
 Method & Accuracy (\%) \\
 \midrule
-RGB-only baseline (3D-CNN)              & $78.7 \pm 2.9$ \\
-Early fusion (concat)                   & $84.3 \pm 4.9$ \\
-Squeeze-and-excitation (best prefix)    & $79.4 \pm 3.3$ \\
-QKV cross-attention (layer 4)           & $79.6 \pm 2.4$ \\
-\textbf{PoseGated (multi-$[0,1]$, ours)} & $\mathbf{88.3 \pm 3.3}$ \\
+RGB-only baseline (3D-CNN)              & $90.7 \pm 1.9$ \\
+Early fusion (concat)                   & $93.7 \pm 2.8$ \\
+Squeeze-and-excitation (best prefix)    & $92.0 \pm 2.4$ \\
+QKV cross-attention (layer 4)           & $89.9 \pm 3.2$ \\
+\textbf{PoseGated (multi-$[0,1]$, ours)} & $\mathbf{94.8 \pm 1.9}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Fusion mechanism (A1)}
 Among fusion families, PoseGated is strongest, followed by early concatenation
-($84.3\%$); squeeze-and-excitation and cross-attention cluster around
-$78\!-\!80\%$, and early element-wise multiplication is weakest ($77.2\%$). The
+($93.7\%$); squeeze-and-excitation and cross-attention cluster around
+$90\!-\!92\%$, and early element-wise multiplication is weakest ($89.3\%$). The
 clinical-prior gating thus adds more than the input-level or unsupervised
 attention alternatives (Fig.~\ref{fig:methods}).
 
 \subsection{Where and how much to fuse (A5)}
 \label{sec:layers}
 Table~\ref{tab:layers} shows the fusion-location study. A single injection at the
-deeper stages ($L3$: $87.5\%$, $L4$: $87.0\%$) already rivals the best model, but
+deeper stages ($L3$: $93.8\%$, $L4$: $93.5\%$) already rivals the best model, but
 for the cumulative \emph{multi} variant \emph{less is more}: shallow
-$[0,1]$ ($88.3\%$) is best and accuracy \emph{decreases} as more stages are
+$[0,1]$ ($94.8\%$) is best and accuracy \emph{decreases} as more stages are
 fused, with all-stage fusion $[0\!-\!4]$ the weakest PoseGated variant
-($81.5\%$; Fig.~\ref{fig:layers}).
+($90.9\%$; Fig.~\ref{fig:layers}).
 
 \begin{table}[t]
 \centering
@@ -244,43 +244,43 @@ fused, with all-stage fusion $[0\!-\!4]$ the weakest PoseGated variant
 \toprule
 single & Acc. & multi & Acc. \\
 \midrule
-$[0]$ & $83.6\pm2.8$ & $[0,1]$        & $\mathbf{88.3\pm3.3}$ \\
-$[1]$ & $85.2\pm3.3$ & $[0,1,2]$      & $85.6\pm4.8$ \\
-$[2]$ & $84.0\pm5.2$ & $[0,1,2,3]$    & $85.1\pm2.2$ \\
-$[3]$ & $87.5\pm2.1$ & $[0,1,2,3,4]$  & $81.5\pm4.8$ \\
-$[4]$ & $87.0\pm5.6$ &                &              \\
+$[0]$ & $92.9\pm2.0$ & $[0,1]$        & $\mathbf{94.8\pm1.9}$ \\
+$[1]$ & $93.5\pm2.1$ & $[0,1,2]$      & $93.4\pm2.8$ \\
+$[2]$ & $92.3\pm1.8$ & $[0,1,2,3]$    & $93.7\pm1.8$ \\
+$[3]$ & $93.8\pm1.5$ & $[0,1,2,3,4]$  & $90.9\pm3.1$ \\
+$[4]$ & $93.5\pm2.6$ &                &              \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Gate initialisation and auxiliary losses (A2--A4)}
 All ablations in Table~\ref{tab:ablation} and Fig.~\ref{fig:ablation} are single-variable changes from the
-all-stage ``full'' configuration ($81.5\%$). A neutral gate initialisation
-($b{=}0$, $84.8\%$) beats the default RGB-biased $b{=}2.0$; removing the
-background loss ($85.4\%$) or the temporal-smoothness loss ($84.6\%$) both
+all-stage ``full'' configuration ($90.9\%$). A neutral gate initialisation
+($b{=}0$, $92.2\%$) beats the default RGB-biased $b{=}2.0$; removing the
+background loss ($93.7\%$) or the temporal-smoothness loss ($93.3\%$) both
 \emph{improve} accuracy; removing the side heads is near-neutral. Every default
 choice of the ``full'' configuration is thus individually sub-optimal.
 
 \begin{table}[t]
 \centering
 \caption{Gate-bias (A2) and loss/component (A3/A4) ablations, all applied to the
-all-stage full model (reference $81.5\pm4.8$). Video accuracy (\%).}
+all-stage full model (reference $90.9\pm3.1$). Video accuracy (\%).}
 \label{tab:ablation}
 \begin{tabular}{lc@{\hskip 2em}lc}
 \toprule
 Gate bias & Acc. & Ablation & Acc. \\
 \midrule
-$b=0.0$   & $84.8\pm3.7$ & $-$ bg loss    & $85.4\pm3.4$ \\
-$b=-1.0$  & $82.6\pm3.4$ & $-$ tmp loss   & $84.6\pm4.4$ \\
-$b=2.0$ (full) & $81.5\pm4.8$ & $-$ side head & $80.8\pm4.1$ \\
+$b=0.0$   & $92.2\pm2.0$ & $-$ bg loss    & $93.7\pm1.5$ \\
+$b=-1.0$  & $90.7\pm2.0$ & $-$ tmp loss   & $93.3\pm2.8$ \\
+$b=2.0$ (full) & $90.9\pm3.1$ & $-$ side head & $90.8\pm2.3$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Because each optimum was found by changing one factor of the (sub-optimal) full
 model, we also trained a post-hoc combination (shallow $[0,1]$ + $b{=}0$ + no
-bg/tmp loss). It reached $86.7\pm5.1\%$, \emph{not} exceeding the plain shallow
-$[0,1]$ model ($88.3\%$): the per-ablation optima do not stack, and the
+bg/tmp loss). It reached $94.8\pm2.8\%$, \emph{not} exceeding the plain shallow
+$[0,1]$ model ($94.8\%$): the per-ablation optima do not stack, and the
 fusion-location choice dominates.
 
 \subsection{Interpretability: attention vs.\ clinical ROI}
@@ -372,9 +372,10 @@ that removes the attention supervision is expected to sharply reduce alignment,
 and would isolate the contribution of the supervision itself.
 
 \paragraph{Limitations}
-The evaluation uses 3-fold cross-validation; the per-fold variance
-($\pm 3\!-\!8$ points) means that small differences are within noise and only the
-larger gaps (baseline vs.\ best, full vs.\ shallow) should be over-interpreted.
+The evaluation uses 3-fold cross-validation; with per-fold variance of
+$\pm 2\!-\!6$ points and a best-vs-baseline gap of about $4$ points, only the
+larger, consistent differences (baseline vs.\ best, full vs.\ shallow) should be
+read as meaningful, and we make no claim of formal statistical significance.
 The study uses a single 3D-CNN backbone and a single, non-public institutional
 dataset; the ``best combination'' was assembled post-hoc rather than validated as
 an independent configuration; and the interpretability claim is one of supervised
@@ -386,7 +387,7 @@ fidelity, not emergent discovery.
 
 PoseGated injects doctor-annotated attention into a 3D-CNN gait classifier through
 channel-wise gating and side-head clinical supervision, improving 3-class ASD
-classification from $78.7\%$ (RGB-only) to $88.3\%$ while producing attention that
+classification from $90.7\%$ (RGB-only) to $94.8\%$ while producing attention that
 verifiably localises the clinical ROI on held-out patients. A controlled ablation
 shows that a shallow, lightly-supervised injection is optimal and that the common
 ``fuse-everywhere, add-every-loss'' default is counter-productive---a guideline we

@@ -60,22 +60,32 @@ METRIC_KEYS = ["video_acc", "video_precision", "video_recall", "video_f1_score"]
 
 
 def _collect():
-    """method -> metric -> {fold: value}"""
+    """method -> metric -> {fold: value}, computed POOLED from best_preds.
+
+    The logged test/video_acc metric is per-batch macro accuracy averaged over
+    batches (average='macro' + logging the batch value), which under-reports by
+    ~5-9 points. We instead pool the saved per-sample predictions per fold and
+    compute standard pooled accuracy (micro) and macro precision/recall/F1.
+    """
+    import torch
+    from sklearn.metrics import f1_score, precision_score, recall_score
     data = defaultdict(lambda: defaultdict(dict))
-    for m in glob.glob(f"{LOG_ROOT}/*_f[0-9]/*/*/metrics/fold_*_metrics.txt"):
-        tag = m.split(f"{LOG_ROOT}/")[1].split("/")[0]
+    for pf in glob.glob(f"{LOG_ROOT}/*_f[0-9]/*/*/best_preds/fold_*_pred.pt"):
+        tag = pf.split(f"{LOG_ROOT}/")[1].split("/")[0]
         mo = re.search(r"_f([0-9]+)$", tag)
         if not mo:
             continue
         method, fold = tag[: mo.start()], mo.group(1)
         try:
-            d = ast.literal_eval(open(m).read())[0]
+            p = torch.load(pf, map_location="cpu").numpy()
+            y = torch.load(pf.replace("_pred.pt", "_label.pt"), map_location="cpu").numpy()
         except Exception:
             continue
-        for mk in METRIC_KEYS:
-            k = next((kk for kk in d if kk.startswith(f"test/{mk}")), None)
-            if k is not None:
-                data[method][mk][fold] = float(d[k])
+        pred = p.argmax(1) if p.ndim > 1 else p
+        data[method]["video_acc"][fold] = float((pred == y).mean())
+        data[method]["video_precision"][fold] = float(precision_score(y, pred, average="macro", zero_division=0))
+        data[method]["video_recall"][fold] = float(recall_score(y, pred, average="macro", zero_division=0))
+        data[method]["video_f1_score"][fold] = float(f1_score(y, pred, average="macro"))
     return data
 
 
@@ -92,21 +102,27 @@ def main():
     data = _collect()
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # ---- CSV (flat) ----
+    # ---- CSV (flat) ---- use csv.writer so display names with commas
+    # (e.g. "multi [0,1]") are properly quoted.
+    import csv
     csv_path = os.path.join(OUT_DIR, "results_summary.csv")
-    with open(csv_path, "w") as f:
-        f.write("group,method,display,n_folds,acc_fold0,acc_fold1,acc_fold2,acc_mean,acc_std,f1_mean\n")
+    with open(csv_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["group", "method", "display", "n_folds",
+                    "acc_fold0", "acc_fold1", "acc_fold2",
+                    "acc_mean", "acc_std", "f1_mean"])
         for group, methods in GROUPS:
             for tag, disp in methods:
                 am = data.get(tag, {}).get("video_acc", {})
                 mean, sd, _ = _stats(am)
                 if mean is None:
-                    f.write(f"{group},{tag},{disp},0,,,,,,\n")
+                    w.writerow([group, tag, disp, 0, "", "", "", "", "", ""])
                     continue
-                a = [f"{am.get(str(i), '')}" for i in range(3)]
+                a = [am.get(str(i), "") for i in range(3)]
                 fm, _, _ = _stats(data.get(tag, {}).get("video_f1_score", {}))
-                f.write(f"{group},{tag},{disp},{len(am)},{a[0]},{a[1]},{a[2]},"
-                        f"{mean:.4f},{sd:.4f},{fm if fm is not None else '':.4f}\n")
+                w.writerow([group, tag, disp, len(am), *[f"{v:.4f}" if v != "" else "" for v in a],
+                            f"{mean:.4f}", f"{sd:.4f}",
+                            f"{fm:.4f}" if fm is not None else ""])
 
     # ---- Markdown (grouped) ----
     md_path = os.path.join(OUT_DIR, "results_summary.md")
