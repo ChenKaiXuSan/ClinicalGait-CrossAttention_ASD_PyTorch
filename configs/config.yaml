@@ -42,10 +42,12 @@ data:
 
 model:
   backbone: 3dcnn # choices=[3dcnn, 2dcnn, cnn_lstm, two_stream], help='the backbone of the model'
+  backbone_net: slow_r50 # 3D-CNN family: slow_r50 (default) | x3d_m (backbone-generality study #4 / alt published baseline #5)
   model_class_num: 3 # the class num of model. 2 > [ASD, non_ASD]. 3 > [ASD, DHS, LCS_HipOA]. 4 > [ASD, DHS, LCS_HipOA, normal]
   model_depth: 50 # choices=[50, 101, 152], help='the depth of used model'
   use_side_heads: True # whether to use side heads for intermediate supervision
   gate_init_bias: 2.0 # initial bias for PoseGated gate; 2.0 biases early training toward RGB
+  gate_mode: gated # PoseGated fusion op: gated (learned gate, default) | add | fixed — gating-vs-injection ablation (#6)
 
   fuse_method: pose_atn # add, mul, concat, none, late, avg, cross_atn, se_atn, pose_atn
   fusion_layers: 5 # the fuse layer number of the model (0-4=individual layer, 5=all layers)

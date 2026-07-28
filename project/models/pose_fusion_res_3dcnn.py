@@ -36,7 +36,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from omegaconf import OmegaConf
 
-from project.models.weight_loader import init_slow_r50
+from project.models.weight_loader import init_slow_r50, init_backbone
 
 logger = logging.getLogger(__name__)
 
@@ -75,12 +75,15 @@ class PoseAttnFusion(nn.Module):
         gate_temp: float = 1.0,
         per_joint_gate: bool = False,  # P2: support per-joint fusion gates
         chunk_size: int = 8,          # temporal dim from dataloader — used to disambiguate attn dims
+        gate_mode: str = "gated",     # "gated" | "add" | "fixed" — ablation of the gating mechanism
     ) -> None:
         super().__init__()
         self.use_residual = use_residual
         self.gate_temp = gate_temp
         self.per_joint_gate = per_joint_gate
         self._chunk_size: int = int(chunk_size)
+        assert gate_mode in ("gated", "add", "fixed"), f"bad gate_mode {gate_mode}"
+        self.gate_mode = gate_mode
 
         self.rgb_conv  = nn.Conv3d(in_channels, in_channels, 3, padding=1, bias=False)
         self.attn_conv = nn.Conv3d(context_channels, in_channels, 1, bias=False)
@@ -103,7 +106,11 @@ class PoseAttnFusion(nn.Module):
         if kind == "bn":
             return nn.BatchNorm3d(c)
         if kind == "gn":
-            return nn.GroupNorm(32 if c >= 32 else max(1, c // 2), c)
+            # largest group count in {32,16,8,4,2,1} that divides c. For SlowR50
+            # widths (all divisible by 32) this is 32 (unchanged); for X3D widths
+            # like 48 it falls back to a valid divisor (16) so GroupNorm is legal.
+            g = next(gg for gg in (32, 16, 8, 4, 2, 1) if c % gg == 0)
+            return nn.GroupNorm(g, c)
         if kind == "ln":
             return nn.GroupNorm(1, c)  # LN-like
         return nn.Identity()
@@ -195,8 +202,17 @@ class PoseAttnFusion(nn.Module):
                 joint_gates_list.append(torch.sigmoid(g_joint).unsqueeze(1))
             self.last_joint_scales = torch.cat(joint_gates_list, dim=1).detach()
 
-        # Fuse (+ optional residual)
-        fused = rgb_feat * g + attn_feat * (1.0 - g)
+        # Fuse (+ optional residual). gate_mode ablates the LEARNED gate:
+        #   gated : learned channel-wise gate g (default, the proposed mechanism)
+        #   add   : plain additive injection of the projected prior (no gate)
+        #   fixed : frozen equal mix (gate hard-set to 0.5) — isolates "shallow
+        #           injection" from "learned gating" at the SAME layers/inputs.
+        if self.gate_mode == "add":
+            fused = rgb_feat + attn_feat
+        elif self.gate_mode == "fixed":
+            fused = 0.5 * rgb_feat + 0.5 * attn_feat
+        else:
+            fused = rgb_feat * g + attn_feat * (1.0 - g)
         out = fused + x if self.use_residual else fused
         out = self.norm_out(out)
         return out
@@ -371,24 +387,29 @@ class PoseFusionRes3DCNN(nn.Module):
         # batch and temporal both have value V. F.interpolate resizes all spatial dims uniformly so
         # we MUST ensure chunk_size != any potential C_out in fusion layers.
         chunk_size = getattr(m, "uniform_temporal_subsample_num", None)
-        if chunk_size is not None:
-            self._chunk_size = int(chunk_size)
-            # Check for collisions with DIM_LIST (used as potential C_out in fusion code)
-            dim_set = set(DIM_LIST)
-            colliding_dims = [d for d in dim_set if d == self._chunk_size]
-            if colliding_dims:
-                raise ValueError(
-                    f"Collision detected: uniform_temporal_subsample_num={self._chunk_size} "
-                    f"collides with fusion layer C_out values {colliding_dims}. "
-                    f"When B == chunk_size, pytorchvideo tensor (B=C_out=T_x) is inherently ambiguous. "
-                    f"Please set uniform_temporal_subsample_num to a value not in {dim_set}."
-                )
-        else:
-            self._chunk_size = getattr(hparams.train, "uniform_temporal_subsample_num", 8)
+        self._chunk_size = int(chunk_size) if chunk_size is not None \
+            else getattr(hparams.train, "uniform_temporal_subsample_num", 8)
 
-        # Build backbone with Kinetics-400 pretrained weights (modified first layer + head)
-        self.model = init_slow_r50(self.ckpt, self.num_classes)
-        self.blocks = nn.ModuleList([self.model.blocks[i] for i in range(6)])
+        # Build backbone (Kinetics-pretrained). backbone_net selects the family
+        #   slow_r50 (default, proven) | x3d_m  — see weight_loader.init_backbone.
+        # Per-stage channel dims: hardcoded DIM_LIST for slow_r50 (unchanged path),
+        # inferred by a dummy forward for any other backbone (#4 backbone-agnostic).
+        self.backbone_net = str(m.get("backbone_net", "slow_r50"))
+        self.model = init_backbone(self.backbone_net, self.ckpt, self.num_classes)
+        n_blocks = len(self.model.blocks)
+        self.blocks = nn.ModuleList([self.model.blocks[i] for i in range(n_blocks)])
+        self.dim_list = (DIM_LIST
+                         if self.backbone_net.lower() in ("slow_r50", "slowr50", "3dcnn")
+                         else self._infer_stage_dims())
+
+        # Guard: chunk_size must not collide with any stage channel width (the
+        # (N,C,T,H,W) ambiguity when B == chunk_size == C_out). See notes above.
+        colliding = [d for d in set(self.dim_list) if d == self._chunk_size]
+        if colliding:
+            raise ValueError(
+                f"Collision: uniform_temporal_subsample_num={self._chunk_size} equals a "
+                f"stage width {colliding}. Set it to a value not in {sorted(set(self.dim_list))}."
+            )
 
         # Fusion modules per stage
         self.attn_fusions = nn.ModuleList([
@@ -400,14 +421,16 @@ class PoseFusionRes3DCNN(nn.Module):
                 gate_init_bias=float(m.get("gate_init_bias", 2.0)),
                 gate_temp=float(m.get("gate_temp", 1.0)),
                 per_joint_gate=self.per_joint_gate,  # P2
+                chunk_size=self._chunk_size,
+                gate_mode=str(m.get("gate_mode", "gated")),  # #6 ablation
             ) if i in self.fusion_layers else nn.Identity()
-            for i, dim in enumerate(DIM_LIST)
+            for i, dim in enumerate(self.dim_list)
         ])
 
         # Side heads for per-joint (or 1ch) maps at chosen stages
         # P2: skeleton_topology_aware → use bone-segment convolution instead of plain Conv3d
         self.side_heads = nn.ModuleList()
-        for i, dim in enumerate(DIM_LIST):
+        for i, dim in enumerate(self.dim_list):
             if self.use_side and i in {1,2,3,4}:
                 if self.skeleton_topology_aware:
                     # Skeleton-aware side head: bone segments conv + concat
@@ -416,6 +439,23 @@ class PoseFusionRes3DCNN(nn.Module):
                     self.side_heads.append(nn.Conv3d(dim, self.attn_channels, kernel_size=1))
             else:
                 self.side_heads.append(nn.Identity())
+
+    # ------------------------ backbone-agnostic dims -------------------------
+    @torch.no_grad()
+    def _infer_stage_dims(self) -> List[int]:
+        """Per-stage output channel width for stages 0..4, by a dummy forward
+        through the backbone blocks. Lets fusion/side-heads adapt to a non-
+        SlowR50 backbone (e.g. X3D) without hardcoded DIM_LIST."""
+        was_training = self.model.training
+        self.model.eval()
+        x = torch.zeros(1, 3, self._chunk_size, 224, 224)
+        dims: List[int] = []
+        for i in range(5):                       # stem + layer1..4 (blocks 0..4)
+            x = self.blocks[i](x)
+            dims.append(int(x.shape[1]))
+        if was_training:
+            self.model.train()
+        return dims
 
     # ---------------------------- Forward ------------------------------------
     def forward(

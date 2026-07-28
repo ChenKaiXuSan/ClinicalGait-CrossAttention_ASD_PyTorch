@@ -25,7 +25,7 @@ from typing import List, Optional, Tuple
 import torch
 import torch.nn as nn
 
-from project.models.weight_loader import init_slow_r50
+from project.models.weight_loader import init_slow_r50, init_backbone
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,16 @@ class Res3DCNN(nn.Module):
         self.fuse_method = hparams.model.fuse_method
 
         ckpt_path = getattr(hparams.model, "ckpt_path", "")
-        self.model = init_slow_r50(ckpt_path, self.model_class_num)
+        # backbone_net: 'slow_r50' (default) | 'x3d_m'. The alternative published
+        # backbone (#4/#5) is supported for the plain RGB baseline (fuse=none);
+        # the input-level fusion stem-surgery below is SlowR50-specific.
+        self.backbone_net = str(getattr(hparams.model, "backbone_net", "slow_r50"))
+        self.model = init_backbone(self.backbone_net, ckpt_path, self.model_class_num)
+        if self.backbone_net.lower() not in ("slow_r50", "slowr50", "3dcnn") \
+                and self.fuse_method not in ("none", None):
+            raise ValueError(
+                f"backbone_net={self.backbone_net!r} currently supports only "
+                f"fuse_method=none (RGB baseline); got fuse_method={self.fuse_method!r}.")
 
         if self.fuse_method == "concat":
             # concat stacks video (3ch) + attn_map (1ch) on the channel dim, so

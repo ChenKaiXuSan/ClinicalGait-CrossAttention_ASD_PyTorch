@@ -195,3 +195,25 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 1. skeleton-only baseline（仅骨架输入）仍未实现，需要 dataloader/model 支持后另开脚本。
 2. `analysis/` 的画图 notebook 需要适配新的 `_f{fold}` 日志目录命名（glob `<tag>_f*`）。
 3. baseline trainer 的 metrics 键名带 `_epoch`（`test/video_acc_epoch`），其他 trainer 是 `test/video_acc`；聚合脚本需兼容两种（`attention_alignment.py` 之外的汇总代码注意）。
+
+## 八、审稿补充实验（reviewer-driven，2026-07）
+
+针对"对比是否充分"的审稿，新增 5 组实验。**#1、#3 为纯推理/分析，已在本机跑出真实结果**；**#4、#5、#6 需 GPU 训练，代码已实现并通过 CPU shape 测试，脚本待 qsub。**
+
+| # | 实验 | 类型 | 脚本 / 分析 | 状态 |
+|---|---|---|---|---|
+| 1 | 临床先验必要性（test-time 扰动：real/shuffled/zero 注意力） | 推理 | `analysis/attention_perturbation.py` | 本机已跑（见下） |
+| 3 | 统计显著性（McNemar + bootstrap CI，配对 clip） | 分析 | `analysis/significance.py` → `significance.md` | 本机已跑 |
+| 4 | 第二骨干 X3D-M（"浅层融合"是否迁移） | 训练 | `run_train_x3d_backbone.sh`（array 0-8） | 待 qsub |
+| 5 | 另一发表架构 RGB baseline（X3D-M） | 训练 | 同上 cfg 0（`x3d_baseline`） | 待 qsub |
+| 6 | 门控机制 vs 纯注入（gate_mode=add/fixed） | 训练 | `run_train_gate_mode.sh`（array 0-5） | 待 qsub |
+
+**代码改动**（均保留 slow_r50 原路径不变，已 CPU 验证无回归）：
+- `weight_loader.py`：新增 `init_x3d` / `init_backbone`（X3D-M，`.blocks[0..5]` 同构；head=`blocks[-1].proj` 复用 `modify_head`）。
+- `pose_fusion_res_3dcnn.py`：`backbone_net` 开关；非 slow_r50 时 `_infer_stage_dims()` 动态推断每层通道（X3D 维度 `[24,24,48,96,192]`）；`_make_norm` 的 GroupNorm 组数改为"能整除 c 的最大者"（修 X3D 48 通道）；新增 `gate_mode`（gated/add/fixed）。
+- `res_3dcnn.py`：`backbone_net`（X3D 仅支持 `fuse=none` RGB baseline，input-level 融合仍 slow_r50）。
+- `config.yaml`：新增 `model.backbone_net`、`model.gate_mode`。
+- X3D-M 用 16 帧 clip（== 项目默认 `uniform_temporal_subsample_num=16`）；权重 `checkpoints/X3D_M.pyth`（缺失自动下载）。
+
+**#4/#5 提交后要看的对比**（同骨干内）：`x3d_baseline` vs `x3d_pose_multi01`（先验是否仍有效）、`x3d_pose_multi01` vs `x3d_pose_full`（浅层是否仍优）。
+**#6**：`add`/`fixed` 若≈`gated`(94.8) → 增益来自浅层注入而非门控；若下降 → 门控本身有贡献。
