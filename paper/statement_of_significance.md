@@ -53,9 +53,9 @@
 > all-stage vs. shallow — are discussed).
 
 **Q8. Does your method operate on full-resolution, full–field-of-view images?**
-> The model consumes full–field-of-view monocular side-view RGB gait frames
-> (uniformly temporally subsampled within a gait cycle, spatially resized to
-> $224\times224$). It does not operate on cropped patches. [Confirm resize details.]
+> The model consumes full–field-of-view monocular side-view RGB gait frames in
+> non-overlapping 16-frame chunks, spatially resized to $224\times224$. It does
+> not operate on cropped patches.
 
 **Q9. Confirm the manuscript includes figures showing findings across the full spatial extent of the input.**
 > The input is 2D video over time (not a 3D volume), so orthogonal-plane views do
@@ -76,11 +76,14 @@
 >   confined to a single fold**; no patient appears in both training and test.
 
 **Q12. For each dataset: public?, sample size, all samples used?, train/test counts.**
-> One dataset (not public). Three diagnostic classes (ASD/DHS/LCS-HipOA);
-> [~81] patients; videos segmented into gait-cycle chunks (~3,100 chunks per fold).
-> Evaluation is 3-fold cross-validation (no held-out separate test set); per fold
-> approximately [2,080] training and [1,050] test chunks. Training uses class-
-> balancing over-sampling; test folds are not over-sampled. [Verify exact counts.]
+> One dataset (not public). Three diagnostic classes: ASD (54 subjects, 1,045
+> gait-cycle clips), DHS (16 subjects, 585 clips), LCS-HipOA (11 subjects, 324
+> clips) — **81 subjects, 1,954 clips** total. Each clip is segmented into
+> 16-frame gait-cycle chunks (resized to 224×224), ≈42,500 chunks in total.
+> Evaluation is 3-fold cross-validation (no held-out separate test set); each
+> test fold holds ≈12,000–16,000 chunks (fold sizes 12,480 / 16,256 / 13,728),
+> leaving ≈26,000–30,000 raw training chunks per fold. Training uses class-
+> balancing over-sampling; test folds are not over-sampled.
 
 **Q13. Potential biases in the data and how they are accounted for.**
 > Class imbalance (addressed by training-split over-sampling; test folds unaltered);
@@ -90,7 +93,8 @@
 > per the SAGER guidance if available.]
 
 **Q14. Is the data and code publicly available? If not, justify.**
-> Code: available at [REPOSITORY URL]. Data: not public — patient gait video is
+> Code: available at https://github.com/ChenKaiXuSan/ClinicalAttention_ASD_PyTorch
+> (make public on acceptance). Data: not public — patient gait video is
 > sensitive/confidential; available from the corresponding author on reasonable
 > request subject to institutional approval.
 
@@ -99,12 +103,13 @@
 > are in Section 4 (Experiments). [Confirm after final edits.]
 
 **Q16. Was the manuscript written with the help of a Large Language Model? If yes, specify which, how, and how integrity was ensured (incl. citation correctness). Confirm this is in the manuscript.**
-> Yes. A large language model ([NAME/VERSION]) was used for assistance with code
-> development, experiment orchestration, results aggregation, and drafting/language
-> editing. All reported numbers were verified against the experiment logs, all
-> references were checked by the authors, and the authors take full responsibility
-> for the content. This is disclosed in the manuscript's *Declaration of generative
-> AI and AI-assisted technologies* section. [Confirm tool name/version.]
+> Yes. Anthropic Claude (Claude Opus, accessed via Claude Code) was used for
+> assistance with code development, experiment orchestration, results aggregation,
+> and drafting/language editing. All reported numbers were verified against the
+> experiment logs, all references were checked by the authors, and the authors take
+> full responsibility for the content. This is disclosed in the manuscript's
+> *Declaration of generative AI and AI-assisted technologies* section. [Confirm the
+> exact model version used for the final submission.]
 
 **Q17. Confirm the submission does not include any patient-identifying information.**
 > Confirmed — the manuscript reports aggregate metrics and attention maps only;

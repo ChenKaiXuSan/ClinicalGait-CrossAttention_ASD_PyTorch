@@ -170,11 +170,14 @@ of \emph{how many} stages are fused.
 \label{sec:exp}
 
 \subsection{Dataset}
-The dataset comprises side-view walking video of patients spanning three
-diagnostic groups---ASD, degenerative hip--spine (DHS), and lumbar canal
-stenosis / hip osteoarthritis (LCS-HipOA)---each labelled from clinical
-assessment. Videos are segmented into gait-cycle clips; per fold this yields on
-the order of $3{,}100$ gait-cycle chunks. The clinical attention maps are built
+The dataset comprises side-view walking video of $81$ subjects spanning three
+diagnostic groups---ASD ($54$ subjects), degenerative hip--spine (DHS, $16$),
+and lumbar canal stenosis / hip osteoarthritis (LCS-HipOA, $11$)---each labelled
+from clinical assessment, yielding $1{,}954$ gait video clips ($1{,}045$
+ASD, $585$ DHS, $324$ LCS-HipOA). Each clip is divided into non-overlapping
+$16$-frame chunks (any trailing partial chunk discarded), spatially resized to
+$224\times224$, giving about $42{,}500$ chunks in total; in the 3-fold split each
+test fold contains on the order of $12{,}000\!-\!16{,}000$ chunks. The clinical attention maps are built
 from extracted keypoints and expert joint annotations. The dataset is not public
 due to ethical constraints.
 
@@ -432,11 +435,13 @@ This work was supported by [FUNDING SOURCE, grant number XXXX].
 The gait dataset is not publicly available due to ethical and privacy constraints
 on patient video. Anonymized data may be available from the corresponding author
 on reasonable request, subject to institutional approval. The training and
-analysis code is available at [REPOSITORY URL].
+analysis code is available at
+\url{https://github.com/ChenKaiXuSan/ClinicalAttention_ASD_PyTorch}.
 
 \section*{Declaration of generative AI and AI-assisted technologies in the manuscript preparation process}
-During the preparation of this work the author(s) used [AI TOOL/SERVICE, e.g.\
-a large language model] for assistance with code development, experiment
+During the preparation of this work the author(s) used Anthropic Claude
+(Claude Opus, accessed via Claude Code) for assistance with code development,
+experiment
 orchestration, results aggregation, and drafting/language editing. After using
 this tool/service, the author(s) reviewed and edited all content, verified every
 reported number against the experiment logs, and checked all references; the
