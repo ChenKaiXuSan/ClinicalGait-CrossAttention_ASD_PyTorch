@@ -305,7 +305,18 @@ pointing game (PG), AUC-Judd, and top-$20\%$ Dice~\citep{bylinskii2019metrics}.
 Table~\ref{tab:main} reports the RGB-only baseline, the strongest configuration
 of each competing fusion mechanism, and PoseGated. PoseGated's best
 configuration (shallow \emph{multi}-$[0,1]$) reaches $94.8\%$, about $4.1$ points
-above the RGB-only baseline and above all competing fusion families.
+above the RGB-only baseline and above all competing fusion families. Because the
+saved predictions are paired across methods within each fold (shared split,
+identical order), we compare them clip-by-clip: a continuity-corrected McNemar
+test and a clip-level bootstrap $95\%$ confidence interval on the accuracy
+difference both find PoseGated's margin over every other method significant at the
+clip level---versus the baseline $+4.1$ ($95\%$ CI $[+3.8,+4.4]$), versus the
+all-stage full model $+3.8$, versus SE $+2.7$, versus cross-attention $+4.5$, and
+versus the strongest early-fusion variant $+1.0$ (all CIs exclude $0$;
+$p\!\ll\!10^{-3}$). We stress that these are \emph{clip-level} tests: because a
+subject contributes many correlated clips the effective sample size is far below
+the clip count, so this establishes segment-level---not subject-level---significance
+(Section~\ref{sec:discuss}).
 
 \begin{table}[t]
 \centering
@@ -574,8 +585,12 @@ backbone-agnostic the recommendation is.
 The evaluation uses 3-fold cross-validation; with per-fold variance of
 $\pm 2\!-\!6$ points and a best-vs-baseline gap of about $4$ points, only the
 larger, consistent differences (baseline vs.\ best, full vs.\ shallow) should be
-read as meaningful, and we make no claim of formal statistical significance.
-Crucially, accuracy is measured at the gait-clip level: because each subject
+read as meaningful. The paired clip-level tests in Section~\ref{sec:results}
+confirm these gaps are significant \emph{at the clip level}, but we make no claim
+of subject-level significance: the tests treat correlated clips of one subject as
+independent, which over-states confidence, and with only three folds a
+fold-level test would be underpowered. Crucially, accuracy is measured at the
+gait-clip level: because each subject
 contributes many correlated clips, these numbers over-count relative to the
 independent subjects per fold and \emph{should not be read as subject- or
 patient-level performance}; confirming a clinical benefit over the RGB baseline
