@@ -417,14 +417,14 @@ deeper PoseGated variant instrumented with side heads through stage~$3$
 essentially every frame (PG $=1.00$), the ranking of ROI pixels is near-perfect
 (AUC $\approx 0.998$), and correlation with the annotation is highest at the
 deepest side head ($L3$, CC up to $0.76$), consistently across the three
-diagnostic classes. Figure~\ref{fig:qualitative} shows the effect qualitatively:
-on a correctly-classified held-out clip per class, the $L3$ attention concentrates
-on the annotated joints. Figure~\ref{fig:methodcam} contrasts the fusion methods by
-where the classifier itself looks---Grad-CAM~\citep{selvaraju2017gradcam} at the
-shared backbone's last stage: PoseGated's class-discriminative attention is the
-most spatially focused and body-centred, whereas the RGB baseline and the
-unsupervised SE and cross-attention variants are more diffuse and often drift
-toward the legs or background.
+diagnostic classes. Figure~\ref{fig:qual}(b) shows the effect qualitatively:
+on a correctly-classified held-out clip per class, the $L3$ supervised attention
+concentrates on the annotated joints, echoing the doctor ROI. For contrast,
+Figure~\ref{fig:qual}(a) shows where the classifier itself looks---Grad-CAM
+\citep{selvaraju2017gradcam} at the shared backbone's last stage: PoseGated's
+class-discriminative attention is the most spatially focused and body-centred,
+whereas the RGB baseline and the unsupervised SE and cross-attention variants are
+more diffuse and often drift toward the legs or background.
 
 \begin{table}[t]
 \centering
@@ -482,29 +482,19 @@ Alignment is highest at the deepest side head.}
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.82\linewidth]{figures/fig_qualitative.pdf}
-\caption{Qualitative attention on held-out clips (deep PoseGated variant,
-multi-$[0,1,2,3]$), one correctly-classified clip per class. Left: RGB frame;
-middle: doctor-annotated ROI overlaid; right: the model's deepest side-head
-($L3$) attention overlaid (heat = higher attention). The supervised attention
-concentrates on the clinically annotated joints rather than the background.}
-\label{fig:qualitative}
-\end{figure*}
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{figures/fig_method_cam.pdf}
-\caption{Cross-method comparison via Grad-CAM~\citep{selvaraju2017gradcam}
-(class-discriminative saliency at the shared SlowR50 backbone's last stage),
-one held-out clip per class, with the doctor ROI shown as an anatomical
-reference. All methods use the same target layer and the same clips (fold-0
-checkpoints). PoseGated's attention is the most spatially focused and
-body-centred; the RGB baseline and the unsupervised SE and cross-attention
-variants are more diffuse and often drift to the legs or background. Grad-CAM
-here answers ``what drives the class decision'', which is distinct from
-PoseGated's \emph{supervised} side-head attention in
-Fig.~\ref{fig:qualitative} (trained to match the ROI).}
-\label{fig:methodcam}
+\includegraphics[width=0.92\linewidth]{figures/fig_qual_combined.pdf}
+\caption{Qualitative attention on held-out clips (the same clip per class is used
+in both panels; fold-0 checkpoints). \textbf{(a)} Class-discriminative saliency
+via Grad-CAM~\citep{selvaraju2017gradcam} at the shared SlowR50 backbone's last
+stage, compared across fusion methods with the doctor ROI as an anatomical
+reference: PoseGated's attention is the most spatially focused and body-centred,
+whereas the RGB baseline and the unsupervised SE and cross-attention variants are
+more diffuse and often drift to the legs or background. \textbf{(b)} PoseGated's
+\emph{supervised} side-head ($L3$) attention (deep variant multi-$[0,1,2,3]$)
+concentrates on the clinically annotated joints, echoing the doctor ROI. Grad-CAM
+(a) answers ``what drives the class decision''; the supervised map (b) is trained
+to match the ROI---two different quantities shown together.}
+\label{fig:qual}
 \end{figure*}
 
 %============================================================
