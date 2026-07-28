@@ -77,12 +77,17 @@ Clinical prior \sep Attention fusion \sep Interpretability
 \label{sec:intro}
 
 Adult spinal deformity (ASD) alters posture and gait, and early identification
-supports timely orthopedic management. Marker-based motion capture and full-spine
-radiography are accurate but costly and not suitable for opportunistic screening.
-Monocular walking video is, by contrast, cheap and ubiquitous, motivating
-video-based gait classifiers. Purely appearance-driven deep models, however,
-are difficult to trust clinically: they offer little evidence that their decisions
-rest on the anatomically relevant regions a spine surgeon would examine.
+supports timely orthopedic management~\citep{asd_clinical_review}. Marker-based
+motion capture and full-spine radiography are accurate but costly and not suitable
+for opportunistic screening~\citep{motioncapture_gait}. Monocular walking video
+is, by contrast, cheap and ubiquitous, motivating video-based gait
+classifiers~\citep{clinical_gait_review,chao2019gaitset} built on modern
+spatiotemporal backbones~\citep{feichtenhofer2019slowfast}. Purely
+appearance-driven deep models, however, are difficult to trust clinically: they
+offer little evidence that their decisions rest on the anatomically relevant
+regions a spine surgeon would examine, and generic attention
+modules~\citep{hu2018senet,vaswani2017attention} are learned without any tie to
+clinical anatomy.
 
 We investigate whether \emph{clinical priors}---region-of-interest (ROI)
 attention maps that orthopedic experts associate with pathological joints
@@ -111,25 +116,95 @@ analysis showing the supervised attention faithfully localises the clinical ROI.
 \section{Related work}
 \label{sec:related}
 
-Video-based gait analysis with 3D CNNs and transformers has been applied to
-clinical motion assessment; two-stream and phase-aware fusion of periodic gait
-signals are common~\citep{chen2023two,chen2024phasemix}. Attention and
-squeeze-and-excitation modules re-weight spatio-temporal features but are
-typically unsupervised. Our work differs in supervising attention against
-explicit clinical ROI annotations and in systematically studying \emph{where}
-the prior should enter the backbone.
+\subsection{Video action and gait recognition}
+Modelling motion from video has been driven by spatiotemporal
+convolutional networks, from early {3D} CNNs~\citep{tran2015c3d} and inflated
+{2D} architectures~\citep{carreira2017i3d}, through factorised
+$(2\!+\!1)$D convolutions~\citep{tran2018closer} and very deep {3D}
+ResNets~\citep{hara2018can} that transfer the {ImageNet}-scale pretraining
+recipe~\citep{deng2009imagenet} to video, to the two-pathway {SlowFast}
+family~\citep{feichtenhofer2019slowfast} that our backbone belongs to. Two-stream
+designs that separate appearance and motion~\citep{simonyan2014twostream} and
+non-local operators that aggregate long-range spatiotemporal
+context~\citep{wang2018nonlocal} are widely used, and video
+transformers~\citep{arnab2021vivit,bertasius2021timesformer} have more recently
+matched or exceeded {3D} CNNs on large corpora such as
+{Kinetics}~\citep{kay2017kinetics}. These backbones underpin gait-based
+recognition, e.g.\ set-based cross-view gait
+identification~\citep{chao2019gaitset}, and our own prior gait
+work~\citep{chen2023two,chen2024phasemix}. We adopt a {Kinetics}-pretrained
+{SlowR50} as a strong, standard backbone and focus on \emph{how a clinical prior
+should be fused into it} rather than on the backbone itself.
+
+\subsection{Clinical and pathological gait analysis}
+Clinical gait assessment has traditionally relied on marker-based optical motion
+capture and full-spine radiography~\citep{motioncapture_gait}, which are accurate
+but costly and ill-suited to opportunistic screening. Vision-based gait analysis
+promises cheaper, contactless assessment~\citep{clinical_gait_review}, and adult
+spinal deformity in particular alters posture and gait in ways relevant to early
+orthopedic management~\citep{asd_clinical_review}. Purely appearance-driven models,
+however, provide little evidence that predictions rest on the anatomically
+relevant regions a clinician would examine---an interpretability gap that this
+work directly targets.
+
+\subsection{Attention and feature fusion}
+Channel and spatial attention modules such as
+squeeze-and-excitation~\citep{hu2018senet} and {CBAM}~\citep{woo2018cbam} re-weight
+features to emphasise informative channels or locations, and self-attention /
+transformer mechanisms~\citep{vaswani2017attention,dosovitskiy2021vit} model
+pairwise interactions across a feature map. In almost all of these, the attention
+is learned \emph{end-to-end and unsupervised}: nothing ties it to a clinically
+meaningful region. We instead treat a doctor-annotated region of interest as an
+additional input stream and combine it with the RGB features through a learned
+channel-wise gate, comparing against early fusion, squeeze-and-excitation, and
+{QKV} cross-attention as fusion baselines.
+
+\subsection{Priors, pose guidance, and supervised interpretability}
+A parallel line of work injects structured priors into medical and video models.
+Keypoints from pose estimators~\citep{cao2017openpose,sun2019hrnet} localise
+anatomy, and heat-map supervision---popularised for segmentation with
+{U-Net}~\citep{ronneberger2015unet} and Dice-based
+objectives~\citep{milletari2016vnet}---provides dense spatial targets. Post-hoc
+explanation methods such as {CAM} and {Grad-CAM}~\citep{zhou2016cam,selvaraju2017gradcam}
+visualise where a trained network attends, and saliency-evaluation
+metrics~\citep{judd2009learning,bylinskii2019metrics} quantify how well such maps
+match a reference. Rather than explain a model after the fact, we \emph{supervise}
+per-joint side-head attention against expert annotations during training and then
+\emph{measure} the resulting alignment on held-out patients with the same
+saliency metrics, turning interpretability into a quantitative, verifiable claim.
+Our work differs from the above in three ways: the attention is supervised by
+explicit clinical ROI annotations rather than learned freely; we systematically
+study \emph{where} and \emph{how much} of the prior to inject; and we report the
+attention--ROI alignment quantitatively on unseen patients.
 
 %============================================================
 \section{Method}
 \label{sec:method}
 
 \subsection{Overview}
-The backbone is a SlowFast-family \emph{SlowR50} 3D CNN
-(stem + four residual stages, denoted $0\!-\!4$). Two inputs are provided per
-clip: the RGB gait video $x\in\mathbb{R}^{3\times T\times H\times W}$ and a
-clinical attention map $a\in\mathbb{R}^{1\times T\times H\times W}$ obtained from
-body keypoints (a confidence-weighted Gaussian heat map over doctor-annotated
-joints). PoseGated fuses $a$ into the RGB feature stream at one or more stages.
+The backbone is a SlowFast-family \emph{SlowR50} 3D
+CNN~\citep{feichtenhofer2019slowfast,he2016resnet} (a stem followed by four
+residual stages, denoted $0\!-\!4$), initialised from {Kinetics}
+pretraining~\citep{kay2017kinetics}. Two inputs are provided per clip: the RGB
+gait video $x\in\mathbb{R}^{3\times T\times H\times W}$ and a clinical attention
+map $a\in\mathbb{R}^{1\times T\times H\times W}$ obtained from body keypoints (a
+confidence-weighted Gaussian heat map over doctor-annotated joints). PoseGated
+fuses $a$ into the RGB feature stream at one or more stages. Figure~\ref{fig:methods}
+and the ablations below study the two design axes we regard as central:
+\emph{where} the prior enters the backbone and \emph{how much} auxiliary
+supervision accompanies it.
+
+\subsection{Clinical attention-map construction}
+For each frame, body keypoints are extracted with an off-the-shelf pose
+estimator~\citep{jocher2023yolov8} (of the wider family
+of~\citealp{cao2017openpose,sun2019hrnet}) and the joints that orthopedic
+experts associate with the pathology (lumbar, pelvis, head, shoulder) are
+rendered as a confidence-weighted {2D} Gaussian heat map, stacked over time to
+form $a$. The same annotated joints define the per-joint targets $A_i$ used to
+supervise the side heads (Section~\ref{sec:method}, below). The attention map is
+a single-channel spatial prior---it marks \emph{where} to look, not a second
+appearance stream---and is resized to the backbone's spatial resolution at each
+fused stage.
 
 \subsection{Channel-wise gated fusion}
 At a fused stage $i$ with feature $f_i$, the attention map is projected to the
@@ -145,7 +220,8 @@ favours the RGB branch when $b>0$; we ablate $b\in\{2.0,0.0,-1.0\}$.
 \subsection{Side-head clinical supervision}
 At each fused stage a lightweight side head predicts a per-joint heat map, which
 is supervised against the (resized) doctor annotation $A_i$ with a combined
-binary cross-entropy and Dice loss. The total objective is
+binary cross-entropy and Dice loss~\citep{milletari2016vnet,ronneberger2015unet}.
+The total objective is
 \begin{equation}
 \mathcal{L} = \mathcal{L}_{\mathrm{cls}}
   + \sum_i \lambda_i\, \mathcal{L}^{\mathrm{attn}}_i
@@ -188,6 +264,26 @@ over-sampling on the training split. Each configuration is trained per fold on a
 separate GPU. Unless stated otherwise, the ``full'' PoseGated configuration fuses
 at all stages ($[0\!-\!4]$) with gate bias $2.0$, side heads, and all loss terms.
 
+\subsection{Implementation details}
+All models share the same {Kinetics}-pretrained {SlowR50}
+backbone~\citep{feichtenhofer2019slowfast} ($50$ layers, with batch
+normalization~\citealp{ioffe2015batchnorm}), with the stem convolution and final
+classification layer adapted to the single-channel prior and the three-way task. Inputs are $16$-frame clips at $224\times224$; the RGB
+stream is scaled to $[0,1]$ and the attention map is resized with the matching
+spatial transform (no aggressive photometric or geometric augmentation, to keep
+the clinical prior spatially faithful). We optimise with
+{Adam}~\citep{kingma2015adam} (learning rate $1\!\times\!10^{-4}$,
+$\beta=(0.5,0.999)$) and a cosine-annealing
+schedule~\citep{loshchilov2017sgdr}, batch size $16$, for up to $50$ epochs with
+early stopping (patience $10$) on the validation accuracy; the best checkpoint per
+fold is used for testing. The multi-task weights are
+$\lambda=\{0.25,0.5,0.75,1.0\}$ over the side heads, $w_{\mathrm{bg}}{=}0.2$, and
+$w_{\mathrm{tmp}}{=}0.05$. Class imbalance is handled by over-sampling the
+training split only (rather than a re-weighted loss such as focal
+loss~\citep{lin2017focal}); test folds are left untouched. Implementation uses
+{PyTorch}~\citep{paszke2019pytorch} with {PyTorch Lightning} and {Hydra}
+configuration; each fold is trained on a single GPU.
+
 \subsection{Metrics}
 Each video is segmented into gait-cycle clips, and we report \emph{clip-level}
 accuracy---the fraction of correctly classified clips, pooled per fold---together
@@ -227,6 +323,24 @@ QKV cross-attention (layer 4)           & $89.9 \pm 3.2$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{Per-class behaviour}
+Figure~\ref{fig:confusion} shows the row-normalised confusion matrix of the main
+model (multi-$[0,1]$), pooled over the three test folds. The three diagnostic
+groups are separated well, with the residual confusion concentrated between the
+classes that are clinically closest in gait presentation; no class collapses into
+another. The pattern is consistent with the macro $F_1$ tracking the pooled
+accuracy closely, indicating the classifier is not simply exploiting the majority
+(ASD) class.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.52\linewidth]{figures/fig_confusion.pdf}
+\caption{Row-normalised confusion matrix (\%) of the main PoseGated model
+(multi-$[0,1]$), pooled over the three patient-grouped test folds. Rows are the
+true class; the diagonal gives per-class recall.}
+\label{fig:confusion}
+\end{figure}
 
 \subsection{Fusion mechanism (A1)}
 Among fusion families, PoseGated is strongest, followed by early concatenation
