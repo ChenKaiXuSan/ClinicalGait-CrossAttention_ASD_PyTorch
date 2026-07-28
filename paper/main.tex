@@ -437,6 +437,38 @@ class-discriminative attention is the most spatially focused and body-centred,
 whereas the RGB baseline and the unsupervised SE and cross-attention variants are
 more diffuse and often drift toward the legs or background.
 
+\subsection{Is the clinical prior actually used?}
+\label{sec:necessity}
+A natural concern is whether PoseGated's gain comes from the clinical prior or
+merely from the extra parameters of the fusion path. We probe this at test time on
+the trained main model (multi-$[0,1]$) by replacing the doctor ROI with (i) a
+\emph{shuffled} map---another clip's ROI, which preserves the map statistics but
+breaks the video--ROI correspondence---and (ii) a \emph{zero} map (no prior),
+on a stratified subsample of each fold's test set (Table~\ref{tab:necessity}).
+Removing the prior collapses accuracy from $94.4\%$ to $73.0\%$ ($-21.4$), and
+even a wrong-but-plausible ROI drops it to $90.1\%$---essentially the RGB-only
+baseline level. The model therefore genuinely \emph{uses} the clinical prior, and
+in a patient-specific way; the improvement is not an artefact of added capacity.
+(The zero condition is partly out-of-distribution for the gate, so the shuffled
+result---in-distribution, still $-4.3$ points---is the cleaner control.)
+
+\begin{table}[t]
+\centering
+\caption{Necessity of the clinical prior: test-time perturbation of the doctor ROI
+on the trained PoseGated (multi-$[0,1]$). Pooled clip accuracy (\%),
+mean\,$\pm$\,std over 3 folds on a stratified subsample.}
+\label{tab:necessity}
+\begin{tabular}{lcc}
+\toprule
+Test-time ROI & Accuracy (\%) & $\Delta$ vs.\ real \\
+\midrule
+real (doctor ROI)              & $94.4 \pm 1.8$ & --- \\
+shuffled (another clip's ROI)  & $90.1 \pm 1.7$ & $-4.3$ \\
+zero (no prior)                & $73.0 \pm 7.8$ & $-21.4$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \begin{table}[t]
 \centering
 \caption{Interpretability alignment of side-head attention with the clinical ROI
@@ -559,19 +591,22 @@ regions on unseen patients (PG $=1.00$, AUC $\approx 0.998$, CC up to $0.76$).
 This should be read as \emph{fidelity}: because the side heads are directly
 supervised against the doctor annotations, the result demonstrates that the
 clinical prior is faithfully learned and generalises to held-out patients, rather
-than that the model spontaneously discovered the pathological joints. A control
-that removes the attention supervision is expected to sharply reduce alignment,
-and would isolate the contribution of the supervision itself.
+than that the model spontaneously discovered the pathological joints. That the
+prior is not merely decorative is shown by the perturbation control
+(Section~\ref{sec:necessity}): removing the ROI at test time drops accuracy by
+$21$ points and a wrong-patient ROI drops it to the RGB baseline level, so the
+model actively---and patient-specifically---relies on the clinical prior.
 
 \paragraph{Failure modes and future work}
 Three directions follow directly from the analysis. First, the strongest evidence
 for the clinical-prior hypothesis would be a subject-level evaluation on a larger,
 multi-site cohort with per-patient aggregation and a proper significance test---the
 current clip-level numbers can only motivate, not confirm, a clinical benefit
-(see Limitations). Second, the interpretability claim should be strengthened from
-\emph{fidelity} to \emph{contribution} by adding the unsupervised-attention
-control above and, ideally, a prospective reader study asking whether the overlaid
-attention changes clinician trust or triage decisions. Third, the residual
+(see Limitations). Second, beyond the test-time perturbation
+(Section~\ref{sec:necessity}), the contribution of the \emph{supervision} could be
+further isolated by a train-time control (training with shuffled or absent ROI)
+and, ideally, a prospective reader study asking whether the overlaid attention
+changes clinician trust or triage decisions. Third, the residual
 inter-class confusion (Fig.~\ref{fig:confusion}) is concentrated between the
 clinically adjacent presentations, suggesting that a richer prior---joint
 \emph{trajectories} or phase-aligned gait dynamics rather than a static per-frame
