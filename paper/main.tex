@@ -41,7 +41,7 @@ gait classifier that fuses RGB video with doctor-annotated region-of-interest
 (ROI) attention maps derived from body keypoints, using a channel-wise gated
 mechanism and per-joint side-head supervision against the clinical annotations.
 On a three-way ASD/DHS/LCS-HipOA gait dataset (patient-grouped 3-fold
-cross-validation), PoseGated reaches $94.8\%$ video accuracy versus $90.7\%$ for
+cross-validation), PoseGated reaches $94.8\%$ clip-level accuracy versus $90.7\%$ for
 an RGB-only 3D-CNN baseline, and outperforms early, squeeze-and-excitation, and
 QKV cross-attention fusion. A systematic ablation over \emph{where} and
 \emph{how much} to inject the prior yields a clear and somewhat counter-intuitive
@@ -186,8 +186,13 @@ separate GPU. Unless stated otherwise, the ``full'' PoseGated configuration fuse
 at all stages ($[0\!-\!4]$) with gate bias $2.0$, side heads, and all loss terms.
 
 \subsection{Metrics}
-We report video-level accuracy (mean\,$\pm$\,std over the 3 folds) and macro
-$F_1$. For interpretability we compare each side head's predicted heat map with
+Each video is segmented into gait-cycle clips, and we report \emph{clip-level}
+accuracy---the fraction of correctly classified clips, pooled per fold---together
+with macro $F_1$, as mean\,$\pm$\,std over the 3 folds. Because multiple clips of
+the same subject are correlated, clip-level accuracy over-counts relative to the
+number of independent subjects; we therefore treat it as a segment-level metric
+and refrain from subject-level or statistical-significance claims
+(Section~\ref{sec:discuss}). For interpretability we compare each side head's predicted heat map with
 the doctor ROI on the held-out test patients using standard saliency-evaluation
 metrics: correlation coefficient (CC), normalized scanpath saliency (NSS),
 pointing game (PG), AUC-Judd, and top-$20\%$ Dice~\citep{bylinskii2019metrics}.
@@ -204,7 +209,7 @@ above the RGB-only baseline and above all competing fusion families.
 
 \begin{table}[t]
 \centering
-\caption{Main comparison. Video accuracy (mean\,$\pm$\,std over patient-grouped
+\caption{Main comparison. Clip-level accuracy (mean\,$\pm$\,std over patient-grouped
 3-fold CV); best per-family configuration shown.}
 \label{tab:main}
 \begin{tabular}{lc}
@@ -238,7 +243,7 @@ fused, with all-stage fusion $[0\!-\!4]$ the weakest PoseGated variant
 
 \begin{table}[t]
 \centering
-\caption{Fusion location/depth. Video accuracy (mean\,$\pm$\,std, \%).}
+\caption{Fusion location/depth. Clip-level accuracy (mean\,$\pm$\,std, \%).}
 \label{tab:layers}
 \begin{tabular}{lc@{\hskip 2em}lc}
 \toprule
@@ -264,7 +269,7 @@ choice of the ``full'' configuration is thus individually sub-optimal.
 \begin{table}[t]
 \centering
 \caption{Gate-bias (A2) and loss/component (A3/A4) ablations, all applied to the
-all-stage full model (reference $90.9\pm3.1$). Video accuracy (\%).}
+all-stage full model (reference $90.9\pm3.1$). Clip-level accuracy (\%).}
 \label{tab:ablation}
 \begin{tabular}{lc@{\hskip 2em}lc}
 \toprule
@@ -376,7 +381,12 @@ The evaluation uses 3-fold cross-validation; with per-fold variance of
 $\pm 2\!-\!6$ points and a best-vs-baseline gap of about $4$ points, only the
 larger, consistent differences (baseline vs.\ best, full vs.\ shallow) should be
 read as meaningful, and we make no claim of formal statistical significance.
-The study uses a single 3D-CNN backbone and a single, non-public institutional
+Crucially, accuracy is measured at the gait-clip level: because each subject
+contributes many correlated clips, these numbers over-count relative to the
+independent subjects per fold and \emph{should not be read as subject- or
+patient-level performance}; confirming a clinical benefit over the RGB baseline
+would require per-subject evaluation on a substantially larger cohort. The study
+also uses a single 3D-CNN backbone and a single, non-public institutional
 dataset; the ``best combination'' was assembled post-hoc rather than validated as
 an independent configuration; and the interpretability claim is one of supervised
 fidelity, not emergent discovery.

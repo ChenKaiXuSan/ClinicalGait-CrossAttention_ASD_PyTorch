@@ -41,12 +41,16 @@
 **Q7. Is the proposed method significantly better than the state of the art? How were gains quantified and verified?**
 > On a three-way (ASD/DHS/LCS-HipOA) gait dataset with **patient-grouped
 > 3-fold cross-validation**, PoseGated (shallow multi-[0,1]) reaches
-> **94.8 ± 1.9%** video accuracy vs **90.7 ± 1.9%** for an RGB-only 3D-CNN
+> **94.8 ± 1.9%** clip-level accuracy vs **90.7 ± 1.9%** for an RGB-only 3D-CNN
 > baseline, and exceeds early fusion (best 93.7%), squeeze-and-excitation (92.0%)
-> and QKV cross-attention (89.9%). Metrics: video accuracy and macro-F1, mean±std
-> over the 3 folds. **Limitation (stated in the manuscript):** with only 3 folds
-> we report mean±std and do **not** claim formal statistical significance; only the
-> larger gaps (baseline vs. best; all-stage vs. shallow) should be over-interpreted.
+> and QKV cross-attention (89.9%). Metrics: clip-level accuracy and macro-F1,
+> mean±std over the 3 folds. **Limitations (stated in the manuscript):** accuracy
+> is measured at the gait-clip level, not per subject — because each subject
+> contributes many correlated clips these numbers over-count relative to the
+> independent subjects per fold and must **not** be read as patient-level
+> performance; and with only 3 folds we report mean±std and do **not** claim
+> formal statistical significance (only the larger gaps — baseline vs. best;
+> all-stage vs. shallow — are discussed).
 
 **Q8. Does your method operate on full-resolution, full–field-of-view images?**
 > The model consumes full–field-of-view monocular side-view RGB gait frames
