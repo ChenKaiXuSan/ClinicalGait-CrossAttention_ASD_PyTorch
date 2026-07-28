@@ -407,17 +407,24 @@ fusion-location choice dominates.
 
 \subsection{Interpretability: attention vs.\ clinical ROI}
 \label{sec:interp}
-Table~\ref{tab:align} and Fig.~\ref{fig:align_fig} quantify, on held-out test patients, how well the
-supervised side-head attention of the main model (multi-$[0,1]$) matches the
-doctor ROI. The attention peak lands inside the clinical ROI in essentially every
-frame (PG $=1.00$), the ranking of ROI pixels is near-perfect (AUC $\approx
-0.998$), and correlation with the annotation is highest at the deepest side head
-($L3$, CC up to $0.76$), consistently across the three diagnostic classes.
+Table~\ref{tab:align} and Fig.~\ref{fig:align_fig} quantify, on held-out test
+patients, how well the supervised side-head attention matches the doctor ROI.
+Because the shallow classifier of Section~\ref{sec:layers} (multi-$[0,1]$) carries
+side heads only at stages $0\!-\!1$, we study alignment \emph{across depth} on a
+deeper PoseGated variant instrumented with side heads through stage~$3$
+(multi-$[0,1,2,3]$). The attention peak lands inside the clinical ROI in
+essentially every frame (PG $=1.00$), the ranking of ROI pixels is near-perfect
+(AUC $\approx 0.998$), and correlation with the annotation is highest at the
+deepest side head ($L3$, CC up to $0.76$), consistently across the three
+diagnostic classes. Figure~\ref{fig:qualitative} shows the effect qualitatively:
+on a correctly-classified held-out clip per class, the $L3$ attention concentrates
+on the annotated joints.
 
 \begin{table}[t]
 \centering
 \caption{Interpretability alignment of side-head attention with the clinical ROI
-on held-out patients (main model, multi-$[0,1]$; ranges over ASD/DHS/LCS-HipOA).}
+on held-out patients (deep PoseGated variant, multi-$[0,1,2,3]$; ranges over
+ASD/DHS/LCS-HipOA).}
 \label{tab:align}
 \begin{tabular}{lccccc}
 \toprule
@@ -467,6 +474,17 @@ Alignment is highest at the deepest side head.}
 \label{fig:align_fig}
 \end{figure}
 
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.82\linewidth]{figures/fig_qualitative.pdf}
+\caption{Qualitative attention on held-out clips (deep PoseGated variant,
+multi-$[0,1,2,3]$), one correctly-classified clip per class. Left: RGB frame;
+middle: doctor-annotated ROI overlaid; right: the model's deepest side-head
+($L3$) attention overlaid (heat = higher attention). The supervised attention
+concentrates on the clinically annotated joints rather than the background.}
+\label{fig:qualitative}
+\end{figure*}
+
 %============================================================
 \section{Discussion}
 \label{sec:discuss}
@@ -483,6 +501,35 @@ recommendation is therefore a shallow, lightly-regularised PoseGated
 combination does not beat the simple shallow model further supports the primacy
 of the fusion-location choice.
 
+\paragraph{Why shallow fusion may help}
+A plausible mechanism is a division of labour between the two streams. Early
+stages ($0,1$) encode low-level appearance and coarse body layout, where a
+spatial prior over anatomical joints is well matched to the feature semantics and
+can steer the receptive field toward the pathological regions cheaply. Deeper
+stages ($3,4$) encode abstract, task-specific motion patterns; forcing a
+fixed anatomical prior into them competes with representations the classifier has
+already learned to weight, effectively adding a regulariser exactly where the
+network least needs one. This is consistent with the two observations that (i) a
+\emph{single} deep injection ($L3$/$L4$) is strong---one well-placed nudge is
+useful---but (ii) \emph{cumulatively} fusing through the deep stages is
+harmful---the prior, applied everywhere, over-writes learned features. The gate
+supports the same reading: a neutral initialisation ($b{=}0$) lets the network
+choose the mixture per channel, whereas a strong RGB bias ($b{=}2$) suppresses the
+prior early and never fully recovers. The auxiliary background and
+temporal-smoothness losses, which further constrain the attention, likewise trade
+a small amount of classification capacity for regularity that this dataset does
+not appear to need.
+
+\paragraph{Clinical implications}
+For screening use, the shallow model is attractive on two counts beyond accuracy.
+It is cheaper---fewer fusion modules and side heads---and its attention is
+verifiably tied to the joints clinicians annotate, which matters more for
+adoption than a marginal accuracy gain from an opaque module. Because the prior
+enters early and lightly, the backbone remains a standard, swappable
+{SlowR50}~\citep{feichtenhofer2019slowfast}, so the recipe should transfer to other
+gait-based clinical tasks (e.g.\ other spinal or hip conditions) without
+re-engineering the network.
+
 \paragraph{Faithful, verifiable attention}
 The interpretability analysis shows the model attends to the clinically annotated
 regions on unseen patients (PG $=1.00$, AUC $\approx 0.998$, CC up to $0.76$).
@@ -492,6 +539,24 @@ clinical prior is faithfully learned and generalises to held-out patients, rathe
 than that the model spontaneously discovered the pathological joints. A control
 that removes the attention supervision is expected to sharply reduce alignment,
 and would isolate the contribution of the supervision itself.
+
+\paragraph{Failure modes and future work}
+Three directions follow directly from the analysis. First, the strongest evidence
+for the clinical-prior hypothesis would be a subject-level evaluation on a larger,
+multi-site cohort with per-patient aggregation and a proper significance test---the
+current clip-level numbers can only motivate, not confirm, a clinical benefit
+(see Limitations). Second, the interpretability claim should be strengthened from
+\emph{fidelity} to \emph{contribution} by adding the unsupervised-attention
+control above and, ideally, a prospective reader study asking whether the overlaid
+attention changes clinician trust or triage decisions. Third, the residual
+inter-class confusion (Fig.~\ref{fig:confusion}) is concentrated between the
+clinically adjacent presentations, suggesting that a richer prior---joint
+\emph{trajectories} or phase-aligned gait dynamics rather than a static per-frame
+ROI---may separate them further; combining PoseGated with phase-aware temporal
+fusion~\citep{chen2024phasemix} is a natural next step. Finally, all results use a
+single {SlowR50} backbone; confirming that the shallow-fusion rule holds for video
+transformers~\citep{arnab2021vivit,bertasius2021timesformer} would establish how
+backbone-agnostic the recommendation is.
 
 \paragraph{Limitations}
 The evaluation uses 3-fold cross-validation; with per-fold variance of
