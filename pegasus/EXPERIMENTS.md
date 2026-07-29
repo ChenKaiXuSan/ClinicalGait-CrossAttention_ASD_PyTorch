@@ -204,9 +204,13 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 |---|---|---|---|---|
 | 1 | 临床先验必要性（test-time 扰动：real/shuffled/zero 注意力） | 推理 | `analysis/attention_perturbation.py` | 本机已跑（见下） |
 | 3 | 统计显著性（McNemar + bootstrap CI，配对 clip） | 分析 | `analysis/significance.py` → `significance.md` | 本机已跑 |
-| 4 | 第二骨干 X3D-M（"浅层融合"是否迁移） | 训练 | `run_train_x3d_backbone.sh`（array 0-8） | 待 qsub |
-| 5 | 另一发表架构 RGB baseline（X3D-M） | 训练 | 同上 cfg 0（`x3d_baseline`） | 待 qsub |
-| 6 | 门控机制 vs 纯注入（gate_mode=add/fixed） | 训练 | `run_train_gate_mode.sh`（array 0-5） | 待 qsub |
+| 4 | 第二骨干 X3D-M（"浅层融合"是否迁移） | 训练 | `run_train_x3d_backbone.sh`（array 0-8） | ⚠️ 部分完成，结果不稳（见下）+ 2 折 OOM 重跑中 `873900[]` |
+| 5 | 另一发表架构 RGB baseline（X3D-M） | 训练 | 同上 cfg 0（`x3d_baseline`） | ⚠️ 同上（fold2 异常 70.9） |
+| 6 | 门控机制 vs 纯注入（gate_mode=add/fixed） | 训练 | `run_train_gate_mode.sh`（array 0-5） | ✅ 完成，已入论文（§A6） |
+
+**#6 结果（3/3，已入论文 §Gating mechanism A6）**：gated(主 94.8) ≈ add(94.0±2.9) > fixed(91.3±3.1)。→ 浅层 [0,1] 注入是主导因素;学习门控只比纯加性高约 0.8 点;固定 0.5 混合最差。强化"融合位置主导"论点。
+
+**#4/#5 X3D 现状（不可用,勿入论文)**：x3d_baseline 96.6/97.0/**70.9**；x3d_pose_multi01 95.9/**72.1**/(重跑)；x3d_pose_full 95.4/96.6/(重跑)。部分折未收敛(70-72%双峰)，X3D-M 对超参敏感，套用 SlowR50 配置(Adam 1e-4/50ep/patience10)不稳。**决策：先等 `873900[]` 重跑的 2 折回来，再决定是否给 X3D 调 LR/epoch 重跑整个矩阵。**
 
 **代码改动**（均保留 slow_r50 原路径不变，已 CPU 验证无回归）：
 - `weight_loader.py`：新增 `init_x3d` / `init_backbone`（X3D-M，`.blocks[0..5]` 同构；head=`blocks[-1].proj` 复用 `modify_head`）。

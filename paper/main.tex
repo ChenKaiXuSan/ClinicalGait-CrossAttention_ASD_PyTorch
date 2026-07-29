@@ -417,6 +417,22 @@ bg/tmp loss). It reached $94.8\pm2.8\%$, \emph{not} exceeding the plain shallow
 $[0,1]$ model ($94.8\%$): the per-ablation optima do not stack, and the
 fusion-location choice dominates.
 
+\subsection{Gating mechanism vs.\ plain injection (A6)}
+\label{sec:gatemech}
+To ask whether the \emph{learned gate} itself matters, or whether the benefit is
+simply injecting the prior at the shallow $[0,1]$ stages, we replace the gate at
+those same layers---keeping the inputs and side heads identical---by (i) a plain
+additive injection ($\hat f = f + \phi(a)$) and (ii) a fixed equal mix
+($\hat f = \tfrac12 f + \tfrac12\phi(a)$). The learned gate ($94.8\%$) is matched
+almost exactly by plain addition ($94.0\pm2.9\%$) and clearly beats the fixed mix
+($91.3\pm3.1\%$). Two things follow: the \emph{location} of the injection is the
+dominant factor---all three shallow variants stay well above the deeper and
+all-stage models---while the learned gate contributes only a small margin
+($\sim\!0.8$ point) over unweighted addition, and a rigid equal mix that cannot
+down-weight the prior is the worst of the three. The gate is therefore a useful
+but secondary refinement on top of shallow injection, consistent with the primacy
+of fusion location throughout.
+
 \subsection{Interpretability: attention vs.\ clinical ROI}
 \label{sec:interp}
 Table~\ref{tab:align} and Fig.~\ref{fig:align_fig} quantify, on held-out test
