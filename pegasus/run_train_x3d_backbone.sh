@@ -16,7 +16,7 @@ source pegasus/setup_env.sh
 cfg=$(( PBS_SUBREQNO / 3 ))
 fold=$(( PBS_SUBREQNO % 3 ))
 root_path=/work/SKIING/chenkaixu/data/asd_dataset
-workers=$(( $(nproc) / 3 ))
+workers=$(( $(nproc) / 6 ))   # lower: X3D PoseGated fold-0 (largest train split) OOM at nproc/3
 X3D_CKPT=checkpoints/X3D_M.pyth       # init_x3d downloads Kinetics X3D-M here if missing
 
 echo "PBS ${PBS_JOBID} sub ${PBS_SUBREQNO} → cfg ${cfg}, fold ${fold} / 3-fold  (X3D-M backbone)"
