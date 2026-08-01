@@ -204,13 +204,18 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 |---|---|---|---|---|
 | 1 | 临床先验必要性（test-time 扰动：real/shuffled/zero 注意力） | 推理 | `analysis/attention_perturbation.py` | 本机已跑（见下） |
 | 3 | 统计显著性（McNemar + bootstrap CI，配对 clip） | 分析 | `analysis/significance.py` → `significance.md` | 本机已跑 |
-| 4 | 第二骨干 X3D-M（"浅层融合"是否迁移） | 训练 | `run_train_x3d_backbone.sh`（array 0-8） | ⚠️ 部分完成，结果不稳（见下）+ 2 折 OOM 重跑中 `873900[]` |
-| 5 | 另一发表架构 RGB baseline（X3D-M） | 训练 | 同上 cfg 0（`x3d_baseline`） | ⚠️ 同上（fold2 异常 70.9） |
+| 4 | 第二骨干 X3D-M（"浅层融合"是否迁移） | 训练 | `run_train_x3d_backbone.sh`（array 0-8） | ❌ 放弃（fold-2 不收敛，A/B 均失败）→ future work |
+| 5 | 另一发表架构 RGB baseline（X3D-M） | 训练 | 同上 cfg 0（`x3d_baseline`） | ❌ 同上 |
 | 6 | 门控机制 vs 纯注入（gate_mode=add/fixed） | 训练 | `run_train_gate_mode.sh`（array 0-5） | ✅ 完成，已入论文（§A6） |
 
 **#6 结果（3/3，已入论文 §Gating mechanism A6）**：gated(主 94.8) ≈ add(94.0±2.9) > fixed(91.3±3.1)。→ 浅层 [0,1] 注入是主导因素;学习门控只比纯加性高约 0.8 点;固定 0.5 混合最差。强化"融合位置主导"论点。
 
-**#4/#5 X3D 现状（不可用,勿入论文)**：x3d_baseline 96.6/97.0/**70.9**；x3d_pose_multi01 95.9/**72.1**/(重跑)；x3d_pose_full 95.4/96.6/(重跑)。部分折未收敛(70-72%双峰)，X3D-M 对超参敏感，套用 SlowR50 配置(Adam 1e-4/50ep/patience10)不稳。**决策：先等 `873900[]` 重跑的 2 折回来，再决定是否给 X3D 调 LR/epoch 重跑整个矩阵。**
+**#4/#5 X3D 最终决定：放弃，归入 future work（方案 C）。** 基础设施可用（`init_x3d`/`_infer_stage_dims`/`backbone_net`，#6 用同一套跑得好；shape 测试通过），但 X3D-M 在 **fold-2 确定性不收敛**：
+- 原始（Adam 1e-4/50ep/patience10）：x3d_baseline f2=70.9、x3d_pose_multi01 f2=72.1（其余折 95-97）。
+- 方案 A（patience20 + 80ep，练更久）：仍钉在 ~0.71，无效。
+- 方案 B（LR→5e-5 低学习率）：仅微升到 val≈0.745，远不及格。
+- 根因推测：fold-2 测试集 LCS_HipOA 占 51%（极不均衡）× X3D-M 训练脆弱性。再调需动 optimizer/warmup，边际递减。
+- **X3D 代码与脚本保留在仓库**（`run_train_x3d_backbone.sh` / `run_train_x3d_f2_rerun.sh` / `run_train_x3d_f2_lowlr.sh`），供日后有人调好超参再用。论文正文 future work 已含"验证浅层融合是否迁移到其他骨干（video transformer 等）"，X3D 自然归此。**论文不改。**
 
 **代码改动**（均保留 slow_r50 原路径不变，已 CPU 验证无回归）：
 - `weight_loader.py`：新增 `init_x3d` / `init_backbone`（X3D-M，`.blocks[0..5]` 同构；head=`blocks[-1].proj` 复用 `modify_head`）。
