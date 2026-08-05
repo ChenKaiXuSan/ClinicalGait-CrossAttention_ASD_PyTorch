@@ -30,7 +30,15 @@ from collections import defaultdict
 import numpy as np
 
 logger = logging.getLogger(__name__)
-METHODS = ["baseline_rgb", "pose_atn_multi_P1"]  # baseline vs main PoseGated
+METHODS = [  # main-comparison methods, to recompute at the prior work's clip granularity
+    "baseline_rgb",
+    "early_concat", "early_add", "early_mul",
+    "se_atn_prefix0",
+    "cross_atn_L4", "cross_atn_L3", "cross_atn_L34",
+    "pose_atn_multi_P1",   # main PoseGated (shallow [0,1])
+    "pose_gated_full",     # all-stage
+    "pose_atn_single_L3",  # best single
+]
 
 
 def _load_probs(tag, fold):
