@@ -293,10 +293,10 @@ pretraining~\citep{kay2017kinetics}. Two inputs are provided per clip: the RGB
 gait video $x\in\mathbb{R}^{3\times T\times H\times W}$ and a clinical attention
 map $a\in\mathbb{R}^{1\times T\times H\times W}$ obtained from body keypoints (a
 confidence-weighted Gaussian heat map over doctor-annotated joints). PoseGated
-fuses $a$ into the RGB feature stream at one or more stages. Table~\ref{tab:methods}
-and the ablations below study the two design axes we regard as central:
-\emph{where} the prior enters the backbone and \emph{how much} auxiliary
-supervision accompanies it.
+fuses $a$ into the RGB feature stream at one or more stages. The ablations below
+(Tables~\ref{tab:layers}--\ref{tab:ablation}) study the two design axes we regard
+as central: \emph{where} the prior enters the backbone and \emph{how much}
+auxiliary supervision accompanies it.
 
 \subsection{Clinical attention-map construction}
 For each frame, body keypoints are extracted with an off-the-shelf pose
@@ -455,7 +455,7 @@ top-$20\%$ Dice~\citep{bylinskii2019metrics}.
 
 \noindent\emph{\textbf{Note (under revision).} PoseGated's own figures (the
 PoseGated row of Table~\ref{tab:main} and the this-work results in
-Tables~\ref{tab:methods} and~\ref{tab:ablation}) are being re-computed under the
+Tables~\ref{tab:layers} and~\ref{tab:ablation}) are being re-computed under the
 held-out, gait-clip protocol of Section~\ref{sec:protocol}. An earlier version was
 pooled per $16$-frame chunk and used the fold holdout for both validation and
 testing, which over-states performance; those values will be replaced by the
