@@ -173,7 +173,7 @@ periodicity and left--right symmetry of gait by fusing phase-aligned motion
 features, and our clinical-knowledge-guided attention
 framework~\citep{chen2025clinicalgait} first introduced doctor-derived
 region-of-interest maps to steer a 3D-CNN toward anatomically relevant joints.
-These three-class models reach the low-$70\%$ range (Section~\ref{sec:prior}).
+These three-class models reach the low-$70\%$ range (Table~\ref{tab:main}).
 The present work builds directly on the last of these: rather than adding the
 clinical prior as an auxiliary attention branch, PoseGated \emph{fuses} it into
 the backbone through a channel-wise gate with per-joint side-head supervision,
@@ -321,69 +321,43 @@ Tables~\ref{tab:main}--\ref{tab:ablation} below are being re-computed under the
 held-out, gait-clip protocol of Section~\ref{sec:protocol}. An earlier version of
 these numbers was pooled per $16$-frame chunk and used the fold holdout for both
 validation and testing, which over-states performance; the values here will be
-replaced by the leakage-corrected clip-level results. The prior-work comparison
-(Table~\ref{tab:prior}) and interpretability findings are unaffected.}
-
-\subsection{Comparison with prior work on this cohort}
-\label{sec:prior}
-Table~\ref{tab:prior} compares our three-class task against the directly
-comparable prior work on the same cohort (Section~\ref{sec:priorwork}):
-PhaseMix~\citep{chen2024phasemix} ($71.4\%$) and our clinical-knowledge-guided
-attention framework~\citep{chen2025clinicalgait} (RGB-only $62.1\%$, best fusion
-$71.4\%$). All are reported per gait clip---the level we adopt here---which is
-what makes the comparison meaningful. (The earlier two-stage
-model~\citep{chen2023two} addresses the easier binary task and is therefore not
-included in this three-class table.)
-
-\begin{table}[t]
-\centering
-\caption{Prior \emph{three-class} (ASD/DHS/LCS-HipOA) gait-video work on the same
-institutional ASD cohort, at the gait-clip level. Accuracy / precision / macro
-$F_1$ as reported in each paper.}
-\label{tab:prior}
-\begin{tabular}{llcccc}
-\toprule
-Work & Method & CV & Acc & Prec & $F_1$ \\
-\midrule
-\citet{chen2024phasemix}     & PhaseMix (periodic fusion)     & 5 & $71.4$ & $72.8$ & $71.2$ \\
-\citet{chen2025clinicalgait} & Clinician-attention (RGB only) & 5 & $62.1$ & $64.6$ & $60.1$ \\
-\citet{chen2025clinicalgait} & Clinician-attention (fused)    & 5 & $71.4$ & $75.5$ & $71.1$ \\
-\textbf{This work}           & \textbf{PoseGated}             & 3 & \multicolumn{3}{c}{\emph{under revision}} \\
-\bottomrule
-\end{tabular}
-\end{table}
+replaced by the leakage-corrected clip-level results. The prior-work rows (top of
+Table~\ref{tab:main}) and the interpretability findings are unaffected.}
 
 \subsection{Main comparison}
-Table~\ref{tab:main} reports the RGB-only baseline, the strongest configuration
-of each competing fusion mechanism, and PoseGated. PoseGated's best
-configuration (shallow \emph{multi}-$[0,1]$) reaches $94.8\%$, about $4.1$ points
-above the RGB-only baseline and above all competing fusion families. Because the
-saved predictions are paired across methods within each fold (shared split,
-identical order), we compare them clip-by-clip: a continuity-corrected McNemar
-test and a clip-level bootstrap $95\%$ confidence interval on the accuracy
-difference both find PoseGated's margin over every other method significant at the
-clip level---versus the baseline $+4.1$ ($95\%$ CI $[+3.8,+4.4]$), versus the
-all-stage full model $+3.8$, versus SE $+2.7$, versus cross-attention $+4.5$, and
-versus the strongest early-fusion variant $+1.0$ (all CIs exclude $0$;
-$p\!\ll\!10^{-3}$). We stress that these are \emph{clip-level} tests: because a
-subject contributes many correlated clips the effective sample size is far below
-the clip count, so this establishes segment-level---not subject-level---significance
-(Section~\ref{sec:discuss}).
+Table~\ref{tab:main} compares PoseGated and the competing fusion families against
+our prior three-class work on the same cohort (Section~\ref{sec:priorwork}): the
+periodic-fusion PhaseMix~\citep{chen2024phasemix} and the clinical-knowledge-guided
+attention framework~\citep{chen2025clinicalgait}, both reported per gait clip.
+(The earlier two-stage model~\citep{chen2023two} addresses the easier binary task
+and is omitted from this three-class comparison.) Paired clip-level significance
+tests (continuity-corrected McNemar and a bootstrap $95\%$ CI on the accuracy
+difference) accompany the final numbers; as flagged above, the this-work rows are
+being recomputed under the leakage-corrected held-out protocol.
 
 \begin{table}[t]
 \centering
-\caption{Main comparison. Clip-level accuracy (mean\,$\pm$\,std over patient-grouped
-3-fold CV); best per-family configuration shown.}
+\caption{Three-class (ASD/DHS/LCS-HipOA) comparison at the gait-clip level: prior
+work on this cohort (top) and this work (bottom). Accuracy / precision / macro
+$F_1$ (\%); prior numbers are as reported. \emph{This-work values are under
+revision (Section~\ref{sec:results} note); the ``fusion location/depth'' and
+ablation studies below use the same provisional numbers.}}
 \label{tab:main}
-\begin{tabular}{lc}
+\begin{tabular}{lcccc}
 \toprule
-Method & Accuracy (\%) \\
+Method & CV & Acc & Prec & $F_1$ \\
 \midrule
-RGB-only baseline (3D-CNN)              & $90.7 \pm 1.9$ \\
-Early fusion (concat)                   & $93.7 \pm 2.8$ \\
-Squeeze-and-excitation (best prefix)    & $92.0 \pm 2.4$ \\
-QKV cross-attention (layer 4)           & $89.9 \pm 3.2$ \\
-\textbf{PoseGated (multi-$[0,1]$, ours)} & $\mathbf{94.8 \pm 1.9}$ \\
+\multicolumn{5}{@{}l}{\emph{Prior work on this cohort}}\\
+PhaseMix~\citep{chen2024phasemix}                       & 5 & $71.4$ & $72.8$ & $71.2$ \\
+Clinician-attention, RGB~\citep{chen2025clinicalgait}   & 5 & $62.1$ & $64.6$ & $60.1$ \\
+Clinician-attention, fused~\citep{chen2025clinicalgait} & 5 & $71.4$ & $75.5$ & $71.1$ \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{This work (3-fold)}}\\
+RGB-only baseline (3D-CNN)               & 3 & $90.7$ & $90.6$ & $90.1$ \\
+Early fusion (concat)                    & 3 & $93.7$ & $93.8$ & $93.2$ \\
+Squeeze-and-excitation (best prefix)     & 3 & $92.0$ & $91.9$ & $91.4$ \\
+QKV cross-attention (layer 4)            & 3 & $89.9$ & $90.5$ & $89.5$ \\
+\textbf{PoseGated (multi-$[0,1]$, ours)} & 3 & $\mathbf{94.8}$ & $\mathbf{94.4}$ & $\mathbf{94.4}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
