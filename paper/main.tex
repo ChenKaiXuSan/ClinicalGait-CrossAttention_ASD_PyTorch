@@ -316,48 +316,53 @@ top-$20\%$ Dice~\citep{bylinskii2019metrics}.
 \section{Results}
 \label{sec:results}
 
-\noindent\emph{\textbf{Note (under revision).} The accuracy figures in
-Tables~\ref{tab:main}--\ref{tab:ablation} below are being re-computed under the
-held-out, gait-clip protocol of Section~\ref{sec:protocol}. An earlier version of
-these numbers was pooled per $16$-frame chunk and used the fold holdout for both
-validation and testing, which over-states performance; the values here will be
-replaced by the leakage-corrected clip-level results. The prior-work rows (top of
-Table~\ref{tab:main}) and the interpretability findings are unaffected.}
+\noindent\emph{\textbf{Note (under revision).} PoseGated's own figures (the
+PoseGated row of Table~\ref{tab:main} and the ablation
+Tables~\ref{tab:layers}--\ref{tab:ablation}) are being re-computed under the
+held-out, gait-clip protocol of Section~\ref{sec:protocol}. An earlier version was
+pooled per $16$-frame chunk and used the fold holdout for both validation and
+testing, which over-states performance; those values will be replaced by the
+leakage-corrected clip-level results. The cited baseline and fusion figures in
+Table~\ref{tab:main} and the interpretability findings are unaffected.}
 
 \subsection{Main comparison}
-Table~\ref{tab:main} compares PoseGated and the competing fusion families against
-our prior three-class work on the same cohort (Section~\ref{sec:priorwork}): the
-periodic-fusion PhaseMix~\citep{chen2024phasemix} and the clinical-knowledge-guided
-attention framework~\citep{chen2025clinicalgait}, both reported per gait clip.
-(The earlier two-stage model~\citep{chen2023two} addresses the easier binary task
-and is omitted from this three-class comparison.) Paired clip-level significance
-tests (continuity-corrected McNemar and a bootstrap $95\%$ CI on the accuracy
-difference) accompany the final numbers; as flagged above, the this-work rows are
-being recomputed under the leakage-corrected held-out protocol.
+Table~\ref{tab:main} compares PoseGated against standard video and skeleton
+architectures and against attention-map fusion strategies on the three-class
+task, following the evaluation of our clinical-knowledge-guided
+study~\citep{chen2025clinicalgait}. Injecting the clinical attention map by simple
+additive fusion already lifts the 3D-CNN baseline from $62.1\%$ to $71.4\%$, and
+PhaseMix~\citep{chen2024phasemix} reaches a comparable $71.4\%$; the multiplicative,
+concatenation, averaging and late-fusion variants are markedly weaker. PoseGated's
+own figures are being recomputed under the leakage-corrected held-out protocol
+(Section~\ref{sec:results} note). (The two-stage model~\citep{chen2023two} addresses
+the binary task and is omitted from this three-class comparison.)
 
 \begin{table}[t]
 \centering
-\caption{Three-class (ASD/DHS/LCS-HipOA) comparison at the gait-clip level: prior
-work on this cohort (top) and this work (bottom). Accuracy / precision / macro
-$F_1$ (\%); prior numbers are as reported. \emph{This-work values are under
-revision (Section~\ref{sec:results} note); the ``fusion location/depth'' and
-ablation studies below use the same provisional numbers.}}
+\caption{Three-class (ASD/DHS/LCS-HipOA) comparison at the gait-clip level:
+accuracy / precision / macro $F_1$ (\%). Baseline architectures and attention-map
+fusion strategies follow~\citet{chen2025clinicalgait} ($5$-fold). PoseGated (this
+work, $3$-fold) is \emph{under revision} (Section~\ref{sec:results} note).}
 \label{tab:main}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccc}
 \toprule
-Method & CV & Acc & Prec & $F_1$ \\
+Method & Acc & Prec & $F_1$ \\
 \midrule
-\multicolumn{5}{@{}l}{\emph{Prior work on this cohort}}\\
-PhaseMix~\citep{chen2024phasemix}                       & 5 & $71.4$ & $72.8$ & $71.2$ \\
-Clinician-attention, RGB~\citep{chen2025clinicalgait}   & 5 & $62.1$ & $64.6$ & $60.1$ \\
-Clinician-attention, fused~\citep{chen2025clinicalgait} & 5 & $71.4$ & $75.5$ & $71.1$ \\
+\multicolumn{4}{@{}l}{\emph{Baseline architectures}}\\
+CNN~\citep{he2016resnet}                 & $52.6$ & $81.1$ & $54.0$ \\
+ST-GCN~\citep{yan2018spatial}            & $60.4$ & $60.2$ & $59.8$ \\
+CNN-LSTM~\citep{mutegeki2020cnn}         & $38.8$ & $45.4$ & $34.9$ \\
+Two-Stream~\citep{simonyan2014twostream} & $54.9$ & $76.5$ & $56.5$ \\
+3D-CNN (RGB)~\citep{chen2023two}         & $62.1$ & $64.6$ & $60.1$ \\
 \midrule
-\multicolumn{5}{@{}l}{\emph{This work (3-fold)}}\\
-RGB-only baseline (3D-CNN)               & 3 & $90.7$ & $90.6$ & $90.1$ \\
-Early fusion (concat)                    & 3 & $93.7$ & $93.8$ & $93.2$ \\
-Squeeze-and-excitation (best prefix)     & 3 & $92.0$ & $91.9$ & $91.4$ \\
-QKV cross-attention (layer 4)            & 3 & $89.9$ & $90.5$ & $89.5$ \\
-\textbf{PoseGated (multi-$[0,1]$, ours)} & 3 & $\mathbf{94.8}$ & $\mathbf{94.4}$ & $\mathbf{94.4}$ \\
+\multicolumn{4}{@{}l}{\emph{Attention-map / motion fusion}}\\
+Add (image $+$ ROI)          & $71.4$ & $75.5$ & $71.1$ \\
+Mul (image $\times$ ROI)     & $50.0$ & $63.6$ & $48.6$ \\
+Concat (channel-wise)        & $59.3$ & $62.5$ & $54.7$ \\
+Avg (mean features)          & $65.8$ & $66.2$ & $64.9$ \\
+Late (score-level)           & $61.2$ & $66.5$ & $58.7$ \\
+PhaseMix~\citep{chen2024phasemix} & $71.4$ & $72.8$ & $71.2$ \\
+\textbf{PoseGated (ours)}    & \multicolumn{3}{c}{\emph{under revision}} \\
 \bottomrule
 \end{tabular}
 \end{table}
