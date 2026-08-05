@@ -338,16 +338,17 @@ included in this three-class table.)
 \begin{table}[t]
 \centering
 \caption{Prior \emph{three-class} (ASD/DHS/LCS-HipOA) gait-video work on the same
-institutional ASD cohort, at the gait-clip level.}
+institutional ASD cohort, at the gait-clip level. Accuracy / precision / macro
+$F_1$ as reported in each paper.}
 \label{tab:prior}
-\begin{tabular}{llcc}
+\begin{tabular}{llcccc}
 \toprule
-Work & Method & CV & Acc (\%) \\
+Work & Method & CV & Acc & Prec & $F_1$ \\
 \midrule
-\citet{chen2024phasemix}   & PhaseMix (periodic fusion)       & 5 & $71.4$ \\
-\citet{chen2025clinicalgait} & Clinician-attention (RGB only) & 5 & $62.1$ \\
-\citet{chen2025clinicalgait} & Clinician-attention (fused)    & 5 & $71.4$ \\
-\textbf{This work}         & \textbf{PoseGated}               & 3 & \emph{under revision} \\
+\citet{chen2024phasemix}     & PhaseMix (periodic fusion)     & 5 & $71.4$ & $72.8$ & $71.2$ \\
+\citet{chen2025clinicalgait} & Clinician-attention (RGB only) & 5 & $62.1$ & $64.6$ & $60.1$ \\
+\citet{chen2025clinicalgait} & Clinician-attention (fused)    & 5 & $71.4$ & $75.5$ & $71.1$ \\
+\textbf{This work}           & \textbf{PoseGated}             & 3 & \multicolumn{3}{c}{\emph{under revision}} \\
 \bottomrule
 \end{tabular}
 \end{table}
