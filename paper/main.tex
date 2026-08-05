@@ -307,12 +307,13 @@ replaced by the leakage-corrected clip-level results. The prior-work comparison
 \subsection{Comparison with prior work on this cohort}
 \label{sec:prior}
 Table~\ref{tab:prior} places our task in the context of previous gait-video work
-on the same institutional ASD cohort~\citep{chen2023two,chen2024phasemix}. The
-published two-stage study addresses the \emph{binary} ASD/non-ASD task ($75.5\%$);
-the most comparable \emph{three-class} reference is our earlier clinician-attention
-approach, whose RGB-only 3D-CNN reaches $62.1\%$ and whose best fusion reaches
-$71.4\%$. All prior results are reported per gait clip, the level we adopt here,
-which is what makes the comparison meaningful.
+on the same institutional ASD cohort. The two-stage study~\citep{chen2023two}
+addresses the \emph{binary} ASD/non-ASD task ($75.5\%$). The directly comparable
+\emph{three-class} (ASD/DHS/LCS-HipOA) references are PhaseMix~\citep{chen2024phasemix}
+($71.4\%$) and our clinical-knowledge-guided attention framework~\citep{chen2025clinicalgait},
+whose RGB-only 3D-CNN reaches $62.1\%$ and whose best fusion reaches $71.4\%$. All
+prior results are reported per gait clip---the level we adopt here---which is what
+makes the comparison meaningful.
 
 \begin{table}[t]
 \centering
@@ -323,10 +324,11 @@ gait-clip level. ``Cls'' is the number of diagnostic classes.}
 \toprule
 Work & Method & Cls & CV & Acc (\%) \\
 \midrule
-\citet{chen2023two}   & Two-stage 3D-CNN            & 2 & 5 & $75.5$ \\
-Prior (this group)    & Clinician-attention, RGB   & 3 & 5 & $62.1$ \\
-Prior (this group)    & Clinician-attention, fused & 3 & 5 & $71.4$ \\
-\textbf{This work}    & \textbf{PoseGated}         & 3 & 3 & \emph{under revision} \\
+\citet{chen2023two}        & Two-stage 3D-CNN                 & 2 & 5 & $75.5$ \\
+\citet{chen2024phasemix}   & PhaseMix (periodic fusion)       & 3 & 5 & $71.4$ \\
+\citet{chen2025clinicalgait} & Clinician-attention (RGB only) & 3 & 5 & $62.1$ \\
+\citet{chen2025clinicalgait} & Clinician-attention (fused)    & 3 & 5 & $71.4$ \\
+\textbf{This work}         & \textbf{PoseGated}               & 3 & 3 & \emph{under revision} \\
 \bottomrule
 \end{tabular}
 \end{table}
