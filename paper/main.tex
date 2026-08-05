@@ -5,7 +5,10 @@
 %% + elsarticle-harv.bst, with \citep/\citet. See paper/README.md.
 %% MIA review is single-anonymized: author names are kept (not double-blind).
 
-\documentclass[review,authoryear,5p,times]{elsarticle}
+%% Submission format for MIA peer review: single-column, double-spaced, line-numbered
+%% (Elsevier-recommended). For the final camera-ready two-column look, swap the
+%% documentclass options to [authoryear,5p,times] and comment out \linenumbers.
+\documentclass[review,authoryear,times]{elsarticle}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
@@ -17,10 +20,13 @@
 \usepackage{url}
 \usepackage[hidelinks]{hyperref}
 \usepackage{xurl}   % allow long URLs (repo link in declarations) to break across lines
+\usepackage{lineno} % line numbers for the review version
 
 \journal{Medical Image Analysis}
 
 \begin{document}
+
+\linenumbers
 
 \begin{frontmatter}
 
