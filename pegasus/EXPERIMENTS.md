@@ -226,3 +226,35 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 
 **#4/#5 提交后要看的对比**（同骨干内）：`x3d_baseline` vs `x3d_pose_multi01`（先验是否仍有效）、`x3d_pose_multi01` vs `x3d_pose_full`（浅层是否仍优）。
 **#6**：`add`/`fixed` 若≈`gated`(94.8) → 增益来自浅层注入而非门控；若下降 → 门控本身有贡献。
+
+## 九、CLEAN held-out 协议重跑（2026-08-05）
+
+**动因**：旧全部结果（~94.8%）被三重放大——(a) chunk 级计数（~42k 相关单元）、(b) `test == val`（checkpoint 选择偏差）、(c) `magic_move` 把 ~20/43 test 患者泄漏进 train。修正后落回真实区间，与本组前作 3 分类（KnowledgeGuided ~62–71%）一致。
+
+**干净协议**（`data.heldout_test=True`，见 `cross_validation.py` heldout 分支 + `data_loader.py`）：外层 `StratifiedGroupKFold` 出**真留出 test**（test≠val、无 magic_move、留出集不过采样），内层再切 val 供 early stopping。CPU 验证 fold0 tr/va/te=34/17/28 患者、三者交集=0、79 test 患者各测一次。缓存另建 `<sampling>_K3_heldout`（提交前 `prepare_folds data.heldout_test=True` 一次，已建）。
+
+| 脚本 | 角色 | array | sub-jobs | experiment tag | 状态 |
+|---|---|---|---|---|---|
+| `run_train_heldout.sh` | 首批 4 配置（baseline / early_concat / pose_multi01 / pose_single_L3） | cfg(4)×fold(3) | 12 | `heldout_{...}_f{fold}` | ✅ 完成 |
+| `run_train_heldout_location.sh` | A5 位置/深度扫（single L0/L1/L2/L4 + multi P2/P3/P4） | cfg(7)×fold(3) | 21 | `heldout_pose_single_L{i}` / `heldout_pose_multi_P{i}` | ⏳ 891743[] QUE |
+| `run_train_heldout_ablation.sh` | A2/A3/A4/A6 gate-bias·loss·gate-mech，**锚 single-L3** | cfg(7)×fold(3) | 21 | `heldout_ab_{bias0,biasneg1,nobg,notmp,noside,gateadd,gatefixed}_f{fold}` | ⏳ 891765[] QUE |
+
+两个新 array 的 `SUBREQNO = cfg*3 + fold`；cfg→配置见各脚本 `case` 块。位置扫复用已完成的 single-L3 与 multi-[0,1](P1)，未重复。
+
+**首批干净结果（3 折 mean±std，%）**：
+
+| 配置 | chunk | clip（前作可比） | patient |
+|---|---|---|---|
+| RGB baseline | 53.8±8.0 | 52.6±9.4 | 67.1±9.5 |
+| early_concat | 56.1±6.4 | 53.7±8.0 | 74.0±4.4 |
+| pose multi-[0,1] | 59.9±13.3 | 60.3±15.9 | 74.4±7.8 |
+| **pose single-L3** | **68.9±5.9** | **69.2±5.5** | **80.2±4.4** |
+
+**⚠️ 结论反转**：干净协议下 **single-L3（深层单点）最优**（69.2 clip），旧"shallow-[0,1] 最好、越深越差"叙事失效。→ tab:layers 全部重做（本节位置扫），主推 model 从 multi-[0,1] 改为 single-L3；tab:ablation 参考模型随之改到 single-L3（本节 ablation array）。
+
+**聚合到 clip 级**（用保存的 softmax，不重推理）：
+```
+python -m analysis.aggregate_heldout data.root_path=/work/SKIING/chenkaixu/data/asd_dataset
+# 跑完后把新 tag 追加到 analysis/aggregate_heldout.py:HELDOUT_METHODS
+```
+necessity / align 是**分析脚本重算**（在干净 ckpt 上跑 `attention_perturbation.py` / `attention_alignment.py`），非重训。
