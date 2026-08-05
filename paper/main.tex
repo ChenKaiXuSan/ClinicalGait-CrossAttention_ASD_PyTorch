@@ -344,25 +344,25 @@ accuracy / precision / macro $F_1$ (\%). Baseline architectures and attention-ma
 fusion strategies follow~\citet{chen2025clinicalgait} ($5$-fold). PoseGated (this
 work, $3$-fold) is \emph{under revision} (Section~\ref{sec:results} note).}
 \label{tab:main}
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-Method & Acc & Prec & $F_1$ \\
+Method & Protocol & Acc & Prec & $F_1$ \\
 \midrule
-\multicolumn{4}{@{}l}{\emph{Baseline architectures}}\\
-CNN~\citep{he2016resnet}                 & $52.6$ & $81.1$ & $54.0$ \\
-ST-GCN~\citep{yan2018spatial}            & $60.4$ & $60.2$ & $59.8$ \\
-CNN-LSTM~\citep{mutegeki2020cnn}         & $38.8$ & $45.4$ & $34.9$ \\
-Two-Stream~\citep{simonyan2014twostream} & $54.9$ & $76.5$ & $56.5$ \\
-3D-CNN (RGB)~\citep{chen2023two}         & $62.1$ & $64.6$ & $60.1$ \\
+\multicolumn{5}{@{}l}{\emph{Baseline architectures}}\\
+CNN~\citep{he2016resnet}                 & 5-fold & $52.6$ & $81.1$ & $54.0$ \\
+ST-GCN~\citep{yan2018spatial}            & 5-fold & $60.4$ & $60.2$ & $59.8$ \\
+CNN-LSTM~\citep{mutegeki2020cnn}         & 5-fold & $38.8$ & $45.4$ & $34.9$ \\
+Two-Stream~\citep{simonyan2014twostream} & 5-fold & $54.9$ & $76.5$ & $56.5$ \\
+3D-CNN (RGB)~\citep{chen2023two}         & 5-fold & $62.1$ & $64.6$ & $60.1$ \\
 \midrule
-\multicolumn{4}{@{}l}{\emph{Attention-map / motion fusion}}\\
-Add (image $+$ ROI)          & $71.4$ & $75.5$ & $71.1$ \\
-Mul (image $\times$ ROI)     & $50.0$ & $63.6$ & $48.6$ \\
-Concat (channel-wise)        & $59.3$ & $62.5$ & $54.7$ \\
-Avg (mean features)          & $65.8$ & $66.2$ & $64.9$ \\
-Late (score-level)           & $61.2$ & $66.5$ & $58.7$ \\
-PhaseMix~\citep{chen2024phasemix} & $71.4$ & $72.8$ & $71.2$ \\
-\textbf{PoseGated (ours)}    & \multicolumn{3}{c}{\emph{under revision}} \\
+\multicolumn{5}{@{}l}{\emph{Attention-map / motion fusion}}\\
+Add (image $+$ ROI)          & 5-fold & $71.4$ & $75.5$ & $71.1$ \\
+Mul (image $\times$ ROI)     & 5-fold & $50.0$ & $63.6$ & $48.6$ \\
+Concat (channel-wise)        & 5-fold & $59.3$ & $62.5$ & $54.7$ \\
+Avg (mean features)          & 5-fold & $65.8$ & $66.2$ & $64.9$ \\
+Late (score-level)           & 5-fold & $61.2$ & $66.5$ & $58.7$ \\
+PhaseMix~\citep{chen2024phasemix} & 5-fold & $71.4$ & $72.8$ & $71.2$ \\
+\textbf{PoseGated (ours)}    & 3-fold, held-out & \multicolumn{3}{c}{\emph{under revision}} \\
 \bottomrule
 \end{tabular}
 \end{table}
