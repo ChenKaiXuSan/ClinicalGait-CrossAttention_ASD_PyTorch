@@ -1,0 +1,146 @@
+<mxfile host="app.diagrams.net" agent="ClinicalGait-PoseGated" version="24.0.0">
+  <diagram id="posegated-dataflow" name="PoseGated data flow">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===================== Phase 1: Data preparation ===================== -->
+        <mxCell id="p1" value="1. Data preparation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#6c8ebf;verticalAlign=top;fontStyle=1;fontSize=13;align=left;spacingLeft=8;spacingTop=6;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="820" height="230" as="geometry" />
+        </mxCell>
+
+        <mxCell id="d_video" value="Monocular gait video&#10;(side view, ~30 fps, 1080p)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="70" y="90" width="180" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="d_yolo" value="YOLOv8 pose estimation&#10;&#8594; keypoint sequences (.pkl)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="70" y="185" width="180" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="d_cycle" value="Gait-cycle segmentation&#10;&#8594; gait clips (json_mix, ~1,954)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="330" y="90" width="200" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="d_roi" value="Clinician ROI annotation&#10;(lumbar, pelvis, head, shoulder)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="620" y="90" width="200" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="d_attnmap" value="Per-joint Gaussian&#10;attention maps (doctor_result)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="620" y="185" width="200" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="d_video" target="d_yolo"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e2" value="video" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="d_video" target="d_cycle"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e3" value="keypoints" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="d_yolo" target="d_cycle"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="d_roi" target="d_attnmap"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e5" value="keypoints" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="d_yolo" target="d_attnmap"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== Phase 2: Cross-validation & sampling ===================== -->
+        <mxCell id="p2" value="2. Patient-grouped cross-validation (clean held-out protocol)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#b85450;verticalAlign=top;fontStyle=1;fontSize=13;align=left;spacingLeft=8;spacingTop=6;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="820" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cv_split" value="StratifiedGroupKFold (grouped by patient)&#10;outer split &#8594; TRUE held-out TEST&#10;inner split &#8594; VAL (early stopping)&#10;train / val / test are patient-disjoint" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="70" y="345" width="260" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="cv_sample" value="Over-sample TRAIN only&#10;(val / test left natural)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="380" y="360" width="200" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="cv_chunk" value="Chunk each gait clip into&#10;non-overlapping 16-frame chunks&#10;(resize 224&#215;224)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="620" y="350" width="210" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e6" value="gait clips" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="d_cycle" target="cv_split"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="cv_split" target="cv_sample"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="cv_sample" target="cv_chunk"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== Phase 3: Per-chunk model inputs ===================== -->
+        <mxCell id="in_rgb" value="RGB video chunk&#10;x : 3 &#215; 16 &#215; 224 &#215; 224" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="250" y="520" width="180" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="in_attn" value="Clinical attention map&#10;a : 1 &#215; 16 &#215; 224 &#215; 224" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="470" y="520" width="180" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="RGB" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="cv_chunk" target="in_rgb"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e10" value="ROI map" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="d_attnmap" target="in_attn"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== Phase 4: PoseGated model ===================== -->
+        <mxCell id="p4" value="3. PoseGated model  (SlowR50 backbone + channel-wise gated fusion)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d79b00;verticalAlign=top;fontStyle=1;fontSize=13;align=left;spacingLeft=8;spacingTop=6;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="610" width="820" height="250" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m_stem" value="stem [0]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="70" y="700" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="m_l1" value="layer1 [1]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="200" y="700" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="m_l2" value="layer2 [2]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="330" y="700" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="m_l3" value="layer3 [3]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="460" y="700" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="m_l4" value="layer4 [4]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="590" y="700" width="90" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="m_head" value="head&#10;GAP + FC" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="720" y="700" width="90" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="be1" style="html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="m_stem" target="m_l1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="be2" style="html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="m_l1" target="m_l2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="be3" style="html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="m_l2" target="m_l3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="be4" style="html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="m_l3" target="m_l4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="be5" style="html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="m_l4" target="m_head"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- gated fusion at [0,1] -->
+        <mxCell id="m_gate" value="channel-wise gated fusion&#10;f&#770; = g&#8857;f + (1-g)&#8857;&#966;(a)&#10;injected at stages [0,1]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="790" width="220" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="ge1" style="html=1;endArrow=open;rounded=0;dashed=1;strokeColor=#d6b656;" edge="1" parent="1" source="m_gate" target="m_stem"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge2" style="html=1;endArrow=open;rounded=0;dashed=1;strokeColor=#d6b656;" edge="1" parent="1" source="m_gate" target="m_l1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ge_in" value="attention map a" style="html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="in_attn" target="m_gate"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="me_in" value="RGB x" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="in_rgb" target="m_stem"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- side heads -->
+        <mxCell id="m_side" value="per-joint side heads&#10;(predict heat maps at [1..4])" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="430" y="790" width="250" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="se1" style="html=1;endArrow=open;rounded=0;dashed=1;strokeColor=#d6b656;" edge="1" parent="1" source="m_l1" target="m_side"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="se2" style="html=1;endArrow=open;rounded=0;dashed=1;strokeColor=#d6b656;" edge="1" parent="1" source="m_l3" target="m_side"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== Phase 5: Losses ===================== -->
+        <mxCell id="l_logits" value="class logits (3)&#10;ASD / DHS / LCS-HipOA" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="720" y="900" width="140" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="l_loss" value="Total loss =&#10;cls  +  &#931;&#955; attn(BCE+Dice)  +  w_bg bg  +  w_tmp tmp" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="70" y="900" width="360" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="le1" value="cls" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="m_head" target="l_logits"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="le2" value="cross-entropy" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="l_logits" target="l_loss"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="le3" value="predicted heat maps&#10;vs doctor ROI" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="m_side" target="l_loss"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===================== Phase 6: Evaluation ===================== -->
+        <mxCell id="p6" value="4. Evaluation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#9673a6;verticalAlign=top;fontStyle=1;fontSize=13;align=left;spacingLeft=8;spacingTop=6;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="990" width="420" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="ev_chunk" value="per-chunk softmax&#10;(held-out TEST)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="470" y="1035" width="150" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ev_clip" value="mean-prob per gait clip&#10;&#8594; clip-level prediction" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="650" y="1035" width="180" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ee0" value="best-val ckpt" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;rounded=0;fontSize=10;" edge="1" parent="1" source="l_logits" target="ev_chunk"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ee1" style="html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="ev_chunk" target="ev_clip"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ev_metric" value="clip-level Acc / Precision / macro-F1&#10;(comparable to prior work)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="560" y="1130" width="240" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="ee2" style="html=1;endArrow=block;rounded=0;" edge="1" parent="1" source="ev_clip" target="ev_metric"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- legend -->
+        <mxCell id="lg" value="Legend:  blue = data / tensors,  green = derived artefacts &amp; final metric,  red = split &amp; sampling,  orange = backbone,  yellow = fusion &amp; side heads,  purple = losses &amp; eval" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=8;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1210" width="820" height="40" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
