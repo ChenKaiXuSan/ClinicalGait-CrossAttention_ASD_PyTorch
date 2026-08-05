@@ -185,6 +185,123 @@ on held-out patients.
 \section{Method}
 \label{sec:method}
 
+\subsection{Clinical Knowledge Information Collection}
+\label{subsec:information_collection}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/GUI.png}
+    \caption{
+    \color{red}
+    Custom interface for collecting region-of-interest annotations from clinicians~\cite{chen2023two}. The dataset includes ASD and non-ASD subjects, where the non-ASD cohort contains DHS and LCS-HipOA cases.
+    A subset of gait frames was annotated by orthopedic experts to identify anatomically important regions used for attention map generation.
+    }
+    \label{fig:gui_interface}
+\end{figure}
+
+To integrate clinical expertise into gait analysis, we collaborated with orthopedic specialists using the annotation tool from~\cite{chen2023two}. 
+As shown in Fig.~\ref{fig:gui_interface}, the GUI supports a structured workflow: clinicians first review a gait video, then assign region-of-interest labels by selecting clinically relevant anatomical areas. 
+Multiple predefined anatomical regions, including the head, shoulder, lumbar-pelvis, wrist, and foot regions,
+could be selected for each gait video.
+
+The interface provides controls for assigning importance scores to each label, enabling experts to indicate which joints are most informative for gait abnormalities. 
+The importance score was defined as a discrete annotation value indicating whether a specific anatomical region was selected by the clinical annotator.
+In addition to region annotation, clinicians record an overall disease judgment for each clip (e.g., ASD, non-ASD, or do not know), and the annotation is saved with subject identifiers and trial information.
+The non-ASD cohort contains DHS and LCS-HipOA cases.
+To improve reliability, we recruited two orthopedic clinicians to provide independent annotations. Both clinicians have multiple years of experience in ASD diagnosis, which helps reduce individual subjectivity and yields more robust clinician-informed priors for attention map construction.
+The final disease labels used for training were assigned based on clinical diagnosis records rather than manual gait-only impressions. 
+Representative gait frames were selected for anatomical region annotation instead of annotating all frames within the video sequence. 
+The two annotators independently performed the anatomical region annotations, and the resulting annotation distributions were subsequently analyzed jointly.
+
+\begin{table}[!ht]
+    \centering
+    \small
+    \caption{Clinician annotation subset.}
+    \label{tab:clinician_annotation_subset}
+    
+    \begin{tabular}{|c|c|c|c|c|}
+        \hline
+        Label       & Diseases detail name   & Patient & Video & Total \\
+        \hline
+        ASD         & Adult Spinal Deformity & 54      & 108  & 108  \\
+        \hline
+        DHS         & Dropped Head Syndrome  & 16      & 32   & 32   \\
+        \hline
+        LCS\_HipOA  & Lumbar Canal Stenosis  & 9       & 18   & 22   \\
+        \cline{2-4} & Hip Osteoarthritis     & 2       & 4    &       \\
+        \hline
+    \end{tabular}
+\end{table}
+
+For clinician review of diagnostically relevant regions, we randomly sampled two clips per participant from the collected videos, as summarized in Tab.~\ref{tab:clinician_annotation_subset}. 
+This design assumes that each participant’s gait pattern remains reasonably consistent across clips and that two clips provide sufficient information for clinicians to identify relevant body regions and assign disease labels.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{figures/medical_info_count.png}
+    \caption{Distribution of joint region selections made by two annotators.
+    {
+    \color{red} 
+    The bar plots show the number of times each anatomical region was selected as clinically important for disease evaluation. 
+    Both annotators most frequently selected the lumbar-pelvis region, followed by the head and shoulder regions, while distal regions such as the foot and wrist were selected less frequently. 
+    }
+    }
+    \label{fig:joint_selection_chart}
+\end{figure}
+
+Fig.~\ref{fig:joint_selection_chart} summarizes clinicians' body region selections across gait videos and reveals a clear anatomical preference pattern. 
+The observed selection distribution also supports the idea that ASD-related cues are often expressed as coordinated patterns across multiple proximal segments (trunk--pelvis--hip) rather than isolated single-joint abnormalities. By encoding these clinician preferences into attention maps, our method injects a structured prior that emphasizes anatomically and pathologically plausible regions. This prior can reduce the search space of the model, encourage learning of more clinically meaningful motion features, and improve interpretability by aligning the network's focus with expert reasoning.
+
+\begin{table}[t]
+\centering
+\caption{Frequency of clinically selected anatomical regions across different disease categories. Values are presented as the number of selected cases with percentages in parentheses.}
+\label{tab:joint_selection_category}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{8pt}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{|l|c|c|c|c|c|}
+\toprule
+\hline
+\textbf{Disease Category} & \textbf{Lumbar-Pelvis} & \textbf{Shoulder} & \textbf{Head} & \textbf{Wrist} & \textbf{Foot} \\
+\midrule
+\hline
+ASD ($n=54$) 
+& 53 (98.1\%) 
+& 24 (44.4\%) 
+& 33 (61.1\%) 
+& 4 (7.4\%) 
+& 2 (3.7\%) \\
+\hline
+DHS ($n=16$) 
+& 6 (37.5\%) 
+& 7 (43.8\%) 
+& 14 (87.5\%) 
+& 0 (0.0\%) 
+& 0 (0.0\%) \\
+\hline
+LCS-HipOA ($n=11$) 
+& 11 (100.0\%) 
+& 5 (45.5\%) 
+& 7 (63.6\%) 
+& 0 (0.0\%) 
+& 0 (0.0\%) \\
+\hline
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+{
+\color{blue}
+To further investigate whether the selected anatomical regions were associated with disease characteristics rather than acquisition-related factors, joint selection frequencies were additionally analyzed for each disease category, as summarized in Table~\ref{tab:joint_selection_category}.
+
+Percentages were calculated within each disease category by dividing the number of subjects with selected anatomical regions by the total number of subjects in that category.
+The analysis showed that lumbar-pelvis regions were most frequently selected in ASD subjects (98.1\%) and LCS-HipOA subjects (100.0\%), suggesting that trunk and pelvic alignment played a major role in clinical gait assessment for these conditions. In contrast, DHS subjects exhibited a substantially higher proportion of head-region selections (87.5\%), indicating different clinically relevant gait characteristics across disease categories.
+Shoulder regions showed relatively moderate selection frequencies across all disease categories, whereas distal joints such as the wrist and foot were rarely selected. These findings suggest that the clinical annotations were concentrated on anatomically relevant regions associated with postural balance and gait compensation rather than being uniformly distributed across the entire body.
+
+Overall, the category-wise analysis supports the hypothesis that the observed anatomical attention distributions were primarily associated with disease-specific gait characteristics rather than solely resulting from video acquisition conditions or viewpoint bias.
+}
+
 \subsection{Overview}
 The backbone is a SlowFast-family \emph{SlowR50} 3D
 CNN~\citep{feichtenhofer2019slowfast,he2016resnet} (a stem followed by four
@@ -193,7 +310,7 @@ pretraining~\citep{kay2017kinetics}. Two inputs are provided per clip: the RGB
 gait video $x\in\mathbb{R}^{3\times T\times H\times W}$ and a clinical attention
 map $a\in\mathbb{R}^{1\times T\times H\times W}$ obtained from body keypoints (a
 confidence-weighted Gaussian heat map over doctor-annotated joints). PoseGated
-fuses $a$ into the RGB feature stream at one or more stages. Table~\ref{tab:methods}
+fuses $a$ into the RGB feature stream at one or more stages. Figure~\ref{fig:methods}
 and the ablations below study the two design axes we regard as central:
 \emph{where} the prior enters the backbone and \emph{how much} auxiliary
 supervision accompanies it.
@@ -250,22 +367,59 @@ of \emph{how many} stages are fused.
 \label{sec:exp}
 
 \subsection{Dataset}
-The dataset comprises side-view walking video of $81$ subjects spanning three
-diagnostic groups---ASD ($54$ subjects), degenerative hip--spine (DHS, $16$),
-and lumbar canal stenosis / hip osteoarthritis (LCS-HipOA, $11$)---each labelled
-from clinical assessment, yielding $1{,}954$ gait video clips ($1{,}045$
-ASD, $585$ DHS, $324$ LCS-HipOA). Each clip is divided into non-overlapping
-$16$-frame chunks (any trailing partial chunk discarded), spatially resized to
+\label{subsec:dataset}
+
+\begin{table}[!ht]
+    \centering
+    \small
+    \caption{Dataset details.}
+    \label{tab:dataset}
+    
+    \begin{tabular}{|c|c|c|c|c|}
+        \hline
+        Label       & Diseases detail name   & Patient & Video & Total \\
+        \hline
+        ASD         & Adult Spinal Deformity & 54      & 1046  & 1046  \\
+        \hline
+        DHS         & Dropped Head Syndrome  & 16      & 587   & 587   \\
+        \hline
+        LCS\_HipOA  & Lumbar Canal Stenosis  & 9       & 260   & 324   \\
+        \cline{2-4} & Hip Osteoarthritis     & 2       & 64    &       \\
+        \hline
+    \end{tabular}
+\end{table}
+
+To support gait and spinal posture analysis, we assembled a clinical video dataset based on the prior studies~\cite{chen2023two, chen2024phasemix}. 
+The study protocol was approved by the Ethics Committee of the University of Tsukuba Hospital (H30-087) and conducted in accordance with the Declaration of Helsinki. 
+Gait videos were acquired using a side-view monocular RGB camera under a standardized walking protocol. All subjects were instructed to walk along a predefined walking path at a self-selected comfortable speed.
+Inclusion criteria included clinically diagnosed disease subjects, the ability to walk independently, and the availability of complete gait video recordings. 
+Exclusion criteria included severe occlusion during walking, incomplete gait sequences, and insufficient image quality for reliable pose estimation and attention map generation.
+
+The dataset comprises gait videos from 81 participants (61 males, 20 females; age range 22--84 years, mean 70 years), recorded at 30 FPS with a spatial resolution of 1920$\times$1080 pixels. 
+Videos were acquired using a single monocular RGB camera.
+The camera was positioned at a side walking view and no multi-view or depth sensors were used.
+
+Participants were instructed to walk naturally along a 10-meter indoor path and continue until reaching their physical limit. 
+Board-certified spine surgeons assigned diagnostic labels based on radiographic findings and comprehensive clinical evaluations. 
+Detailed demographic and diagnostic information is summarized in Table~\ref{tab:dataset}.
+
+In this study, the collected data were categorized into three groups: adult spinal deformity, dropped head syndrome, and a combined group of lumbar canal stenosis and hip osteoarthritis. 
+The final classification task was formulated as a multiclass classification problem .
+The non-ASD cohort included patients with developmental hip dysplasia (DHS), lumbar canal stenosis (LCS), and hip osteoarthritis (HipOA).
+
+LCS and HipOA were merged into a single category for two main reasons. 
+First, from a clinical perspective, both conditions are characterized by gait-related symptoms such as reduced walking endurance, compensatory trunk inclination, and altered lower-limb kinematics. 
+Second, these clinical manifestations are visually observable in gait videos and share overlapping motion patterns, making them difficult to reliably distinguish based solely on video-based analysis. 
+Considering both the similarity of visual gait characteristics and class balance constraints within the dataset, LCS and HipOA were therefore grouped together for classification.
+
+Each clip is divided into non-overlapping $16$-frame chunks (any trailing partial chunk discarded), spatially resized to
 $224\times224$, giving about $42{,}500$ chunks in total; in the 3-fold split each
 test fold contains on the order of $12{,}000\!-\!16{,}000$ chunks. The clinical attention maps are built
 from extracted keypoints and expert joint annotations. The dataset is not public
 due to ethical constraints.
 
-\subsection{Protocol}
-We use patient-grouped stratified 3-fold cross-validation (StratifiedGroupKFold)
-so that no patient appears in both training and test folds, with class-balancing
-over-sampling on the training split. Each configuration is trained per fold on a
-separate GPU. Unless stated otherwise, the ``full'' PoseGated configuration fuses
+We use patient-grouped stratified 3-fold cross-validation so that no patient appears in both training and test folds. 
+Each configuration is trained per fold on a separate GPU. Unless stated otherwise, the ``full'' PoseGated configuration fuses
 at all stages ($[0\!-\!4]$) with gate bias $2.0$, side heads, and all loss terms.
 
 \subsection{Implementation details}
@@ -317,8 +471,8 @@ top-$20\%$ Dice~\citep{bylinskii2019metrics}.
 \label{sec:results}
 
 \noindent\emph{\textbf{Note (under revision).} PoseGated's own figures (the
-PoseGated row of Table~\ref{tab:main} and the ablation
-Tables~\ref{tab:layers}--\ref{tab:ablation}) are being re-computed under the
+PoseGated row of Table~\ref{tab:main} and the this-work results in
+Tables~\ref{tab:methods} and~\ref{tab:ablation}) are being re-computed under the
 held-out, gait-clip protocol of Section~\ref{sec:protocol}. An earlier version was
 pooled per $16$-frame chunk and used the fold holdout for both validation and
 testing, which over-states performance; those values will be replaced by the
@@ -403,42 +557,38 @@ level: accuracy / precision / macro $F_1$ (\%). \emph{Values under revision
 \toprule
 Method & Acc & Prec & $F_1$ \\
 \midrule
+\multicolumn{4}{@{}l}{\emph{Fusion mechanism (A1)}}\\
 RGB-only baseline (3D-CNN)          & $90.6$ & $90.6$ & $90.1$ \\
 Early fusion (add)                  & $91.5$ & $91.4$ & $91.0$ \\
 Early fusion (mul)                  & $89.9$ & $90.1$ & $89.5$ \\
 Early fusion (concat)               & $93.8$ & $93.8$ & $93.2$ \\
 Squeeze-and-excitation (best)       & $92.1$ & $91.9$ & $91.4$ \\
 QKV cross-attention (layer 4)       & $90.2$ & $90.5$ & $89.5$ \\
-\textbf{PoseGated (multi-$[0,1]$, ours)} & $\mathbf{94.8}$ & $\mathbf{94.4}$ & $\mathbf{94.4}$ \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{PoseGated --- single-layer fusion $[i]$ (A5)}}\\
+$[0]$ (stem)   & $92.8$ & $92.7$ & $92.5$ \\
+$[1]$          & $93.4$ & $93.4$ & $93.0$ \\
+$[2]$          & $92.6$ & $92.2$ & $92.1$ \\
+$[3]$          & $93.8$ & $94.3$ & $93.9$ \\
+$[4]$          & $93.6$ & $93.5$ & $93.4$ \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{PoseGated --- cumulative fusion $[0\!:\!i]$ (A5)}}\\
+\textbf{$[0,1]$ (ours)}   & $\mathbf{94.8}$ & $\mathbf{94.4}$ & $\mathbf{94.4}$ \\
+$[0,1,2]$                 & $93.4$ & $93.1$ & $93.2$ \\
+$[0,1,2,3]$               & $93.6$ & $93.8$ & $93.5$ \\
+$[0,1,2,3,4]$ (all)       & $91.0$ & $90.8$ & $90.9$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Where and how much to fuse (A5)}
 \label{sec:layers}
-Table~\ref{tab:layers} shows the fusion-location study. A single injection at the
-deeper stages ($L3$: $93.8\%$, $L4$: $93.5\%$) already rivals the best model, but
-for the cumulative \emph{multi} variant \emph{less is more}: shallow
-$[0,1]$ ($94.8\%$) is best and accuracy \emph{decreases} as more stages are
-fused, with all-stage fusion $[0\!-\!4]$ the weakest PoseGated variant
-($90.9\%$; Fig.~\ref{fig:layers}).
-
-\begin{table}[t]
-\centering
-\caption{Fusion location/depth. Clip-level accuracy (mean\,$\pm$\,std, \%).}
-\label{tab:layers}
-\begin{tabular}{lc@{\hskip 2em}lc}
-\toprule
-single & Acc. & multi & Acc. \\
-\midrule
-$[0]$ & $92.9\pm2.0$ & $[0,1]$        & $\mathbf{94.8\pm1.9}$ \\
-$[1]$ & $93.5\pm2.1$ & $[0,1,2]$      & $93.4\pm2.8$ \\
-$[2]$ & $92.3\pm1.8$ & $[0,1,2,3]$    & $93.7\pm1.8$ \\
-$[3]$ & $93.8\pm1.5$ & $[0,1,2,3,4]$  & $90.9\pm3.1$ \\
-$[4]$ & $93.5\pm2.6$ &                &              \\
-\bottomrule
-\end{tabular}
-\end{table}
+The fusion location/depth study is folded into the lower two blocks of
+Table~\ref{tab:methods}. A single injection at the deeper stages ($[3]$: $93.8\%$,
+$[4]$: $93.6\%$) already rivals the best model, but for the cumulative
+\emph{multi} variant \emph{less is more}: shallow $[0,1]$ ($94.8\%$) is best and
+accuracy \emph{decreases} as more stages are fused, with all-stage fusion
+$[0\!-\!4]$ the weakest PoseGated variant ($91.0\%$; Fig.~\ref{fig:layers}).
 
 \subsection{Gate initialisation and auxiliary losses (A2--A4)}
 All ablations in Table~\ref{tab:ablation} and Fig.~\ref{fig:ablation} are single-variable changes from the
@@ -554,6 +704,14 @@ $L0\!-\!L2$    & $0.43\!-\!0.53$ & $1.5\!-\!2.0$ & $1.00$ & ${\approx}1.00$ & $0
 \end{tabular}
 \end{table}
 
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.62\linewidth]{figures/fig_methods.pdf}
+\caption{Fusion-method comparison (best per family). PoseGated (blue) exceeds the
+RGB-only baseline (grey) and all competing fusion mechanisms. Bars show
+mean$\,\pm\,$std over patient-grouped 3-fold cross-validation.}
+\label{fig:methods}
+\end{figure}
 
 \begin{figure}[t]
 \centering
