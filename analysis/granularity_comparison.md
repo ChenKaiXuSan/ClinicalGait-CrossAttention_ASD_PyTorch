@@ -1,5 +1,35 @@
 # Accuracy by evaluation granularity (chunk / clip / patient)
 
+## ⭐ CLEAN held-out protocol (job 890178) — USE THESE, supersedes the leaked table below
+
+Re-run of the key methods under the leakage-free protocol (`data.heldout_test=True`):
+patient-grouped outer split → true held-out **test ≠ val**, **no `magic_move`**,
+hold-out set not over-sampled. Aggregated by `analysis/aggregate_heldout.py`.
+mean ± std over 3 folds.
+
+| Method | chunk (~42k) | **clip (~1954)** | patient (81) |
+|---|---|---|---|
+| RGB baseline            | 53.8 ± 8.0 | 52.6 ± 9.4  | 67.1 ± 9.5 |
+| early_concat            | 56.1 ± 6.4 | 53.7 ± 8.0  | 74.0 ± 4.4 |
+| PoseGated multi[0,1]    | 59.9 ± 13.3| 60.3 ± 15.9 | 74.4 ± 7.8 |
+| **PoseGated single L3** | **68.9 ± 5.9** | **69.2 ± 5.5** | **80.2 ± 4.4** |
+
+**What this settles:**
+1. The old ~90% was **inflated by leakage + test==val**, NOT by chunk-vs-clip
+   granularity: under the clean protocol clip ≈ chunk (69.2 vs 68.9).
+2. Clean **PoseGated (single L3) = 69.2% clip-level** — in range with the group's
+   prior 3-class work (PhaseMix 71.4%), but with no patient leakage.
+3. **Honest ablation lead: +16.6 clip-level points over the RGB baseline** (69.2 vs 52.6).
+4. **The best config changed**: single-L3 now beats the previously-"main" multi[0,1]
+   (69.2 vs 60.3) — the manuscript's headline method must switch to single-L3.
+
+The multi-granularity table below was computed on the OLD leaky protocol
+(`magic_move`, test==val) and is retained only for the record. **Do not cite it.**
+
+---
+
+## (superseded) Leaky-protocol multi-granularity table
+
 Computed by `analysis/aggregate_levels.py` from the SAVED per-chunk softmax
 predictions (best_preds) — no re-inference. Aggregation: mean-probability within
 each gait clip (`video_name`) and within each patient key (`video_name` prefix).
