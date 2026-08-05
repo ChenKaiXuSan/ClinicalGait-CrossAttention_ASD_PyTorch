@@ -161,6 +161,26 @@ explicit clinical ROI annotations rather than learned freely; we systematically
 study \emph{where} and \emph{how much} of the prior to inject; and we report the
 attention--ROI alignment quantitatively on unseen patients.
 
+\subsection{Our prior work on this cohort}
+\label{sec:priorwork}
+This study continues a line of gait-video work on the same institutional cohort.
+We first framed the problem as \emph{binary} ASD/non-ASD screening with a
+two-stage 3D-CNN that separates gait-cycle detection from
+classification~\citep{chen2023two}. We then moved to the harder \emph{three-class}
+task (ASD vs.\ degenerative hip--spine, DHS, vs.\ lumbar canal stenosis / hip
+osteoarthritis, LCS-HipOA): PhaseMix~\citep{chen2024phasemix} exploits the
+periodicity and left--right symmetry of gait by fusing phase-aligned motion
+features, and our clinical-knowledge-guided attention
+framework~\citep{chen2025clinicalgait} first introduced doctor-derived
+region-of-interest maps to steer a 3D-CNN toward anatomically relevant joints.
+These three-class models reach the low-$70\%$ range (Section~\ref{sec:prior}).
+The present work builds directly on the last of these: rather than adding the
+clinical prior as an auxiliary attention branch, PoseGated \emph{fuses} it into
+the backbone through a channel-wise gate with per-joint side-head supervision,
+and---unlike our earlier papers---systematically studies \emph{where} and
+\emph{how much} of the prior to inject and quantifies the attention--ROI alignment
+on held-out patients.
+
 %============================================================
 \section{Method}
 \label{sec:method}
@@ -306,29 +326,28 @@ replaced by the leakage-corrected clip-level results. The prior-work comparison
 
 \subsection{Comparison with prior work on this cohort}
 \label{sec:prior}
-Table~\ref{tab:prior} places our task in the context of previous gait-video work
-on the same institutional ASD cohort. The two-stage study~\citep{chen2023two}
-addresses the \emph{binary} ASD/non-ASD task ($75.5\%$). The directly comparable
-\emph{three-class} (ASD/DHS/LCS-HipOA) references are PhaseMix~\citep{chen2024phasemix}
-($71.4\%$) and our clinical-knowledge-guided attention framework~\citep{chen2025clinicalgait},
-whose RGB-only 3D-CNN reaches $62.1\%$ and whose best fusion reaches $71.4\%$. All
-prior results are reported per gait clip---the level we adopt here---which is what
-makes the comparison meaningful.
+Table~\ref{tab:prior} compares our three-class task against the directly
+comparable prior work on the same cohort (Section~\ref{sec:priorwork}):
+PhaseMix~\citep{chen2024phasemix} ($71.4\%$) and our clinical-knowledge-guided
+attention framework~\citep{chen2025clinicalgait} (RGB-only $62.1\%$, best fusion
+$71.4\%$). All are reported per gait clip---the level we adopt here---which is
+what makes the comparison meaningful. (The earlier two-stage
+model~\citep{chen2023two} addresses the easier binary task and is therefore not
+included in this three-class table.)
 
 \begin{table}[t]
 \centering
-\caption{Prior gait-video work on the same institutional ASD cohort, at the
-gait-clip level. ``Cls'' is the number of diagnostic classes.}
+\caption{Prior \emph{three-class} (ASD/DHS/LCS-HipOA) gait-video work on the same
+institutional ASD cohort, at the gait-clip level.}
 \label{tab:prior}
-\begin{tabular}{llccc}
+\begin{tabular}{llcc}
 \toprule
-Work & Method & Cls & CV & Acc (\%) \\
+Work & Method & CV & Acc (\%) \\
 \midrule
-\citet{chen2023two}        & Two-stage 3D-CNN                 & 2 & 5 & $75.5$ \\
-\citet{chen2024phasemix}   & PhaseMix (periodic fusion)       & 3 & 5 & $71.4$ \\
-\citet{chen2025clinicalgait} & Clinician-attention (RGB only) & 3 & 5 & $62.1$ \\
-\citet{chen2025clinicalgait} & Clinician-attention (fused)    & 3 & 5 & $71.4$ \\
-\textbf{This work}         & \textbf{PoseGated}               & 3 & 3 & \emph{under revision} \\
+\citet{chen2024phasemix}   & PhaseMix (periodic fusion)       & 5 & $71.4$ \\
+\citet{chen2025clinicalgait} & Clinician-attention (RGB only) & 5 & $62.1$ \\
+\citet{chen2025clinicalgait} & Clinician-attention (fused)    & 5 & $71.4$ \\
+\textbf{This work}         & \textbf{PoseGated}               & 3 & \emph{under revision} \\
 \bottomrule
 \end{tabular}
 \end{table}
