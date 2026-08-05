@@ -52,26 +52,11 @@
   city={Tsukuba}, country={Japan}}
 
 \begin{abstract}
-Automated screening of adult spinal deformity from ordinary walking video
-would lower the barrier to early orthopedic assessment, but appearance-only
-models are hard to interpret clinically. We present \emph{PoseGated}, a 3D-CNN
-gait classifier that fuses RGB video with doctor-annotated region-of-interest
-(ROI) attention maps derived from body keypoints, using a channel-wise gated
-mechanism and per-joint side-head supervision against the clinical annotations.
-On a three-way ASD/DHS/LCS-HipOA gait dataset (patient-grouped 3-fold
-cross-validation), PoseGated reaches $94.8\%$ clip-level accuracy versus $90.7\%$ for
-an RGB-only 3D-CNN baseline, and outperforms early, squeeze-and-excitation, and
-QKV cross-attention fusion. A systematic ablation over \emph{where} and
-\emph{how much} to inject the prior yields a clear and somewhat counter-intuitive
-finding: shallow fusion (stem+layer1) is best, while fusing at all stages is the
-weakest PoseGated variant; the auxiliary background and temporal-smoothness
-losses and a strongly RGB-biased gate initialisation \emph{hurt} accuracy. A
-held-out interpretability analysis shows the model's supervised attention
-reliably localises the clinically annotated ROI (pointing-game hit rate $1.00$,
-AUC $\approx 0.998$, correlation up to $0.76$ at the deepest side head),
-demonstrating that the clinical prior is faithfully learned and generalises to
-unseen patients.
+Adult spinal deformity (ASD) alters gait, yet video-based screening models generally rely on appearance cues and provide limited correspondence with clinically meaningful body regions. We propose PoseGated, a clinically guided video classification framework that integrates RGB gait videos with clinician-defined region-of-interest priors constructed from body keypoints. PoseGated uses learnable channel-wise gates to selectively inject these priors into the visual backbone and auxiliary joint-specific side heads to align intermediate attention with clinician annotations.
+We evaluate the method on a three-class clinical gait dataset using patient-grouped three-fold cross-validation. PoseGated achieves $94.8\%$ clip-level accuracy, improving over the RGB-only backbone ($90.7\%$) by $4.1$ percentage points and outperforming the evaluated attention-fusion baselines. Extensive ablations reveal that the effectiveness of clinical priors depends strongly on their injection depth: fusion restricted to the stem and first residual stage performs best, whereas fusion at every stage yields the weakest PoseGated configuration. Additional background and temporal-smoothness objectives and strongly RGB-biased gate initialisation also reduce classification accuracy.
+On held-out patients, the supervised attention maps accurately recover the clinician-defined regions, with a pointing-game hit rate of $1.00$, a pixel-wise ROC AUC of approximately $0.998$, and an attention-map correlation of up to $0.76$. These findings show that selective shallow fusion can translate sparse clinical knowledge into both improved gait classification and anatomically grounded model explanations, supporting interpretable video-based assessment of ASD.
 \end{abstract}
+
 
 % Highlights: 3-5 items, each <= 85 characters incl. spaces, minimal acronyms
 % (per Elsevier author guidelines).
@@ -84,8 +69,7 @@ unseen patients.
 \end{highlights}
 
 \begin{keyword}
-Adult spinal deformity \sep Gait analysis \sep Video classification \sep
-Clinical prior \sep Attention fusion \sep Interpretability
+Adult spinal deformity \sep Gait analysis \sep Video classification \sep Clinical prior \sep Attention fusion \sep Interpretability
 \end{keyword}
 
 \end{frontmatter}
@@ -94,41 +78,23 @@ Clinical prior \sep Attention fusion \sep Interpretability
 \section{Introduction}
 \label{sec:intro}
 
-Adult spinal deformity (ASD) alters posture and gait, and early identification
-supports timely orthopedic management~\citep{asd_clinical_review}. Marker-based
-motion capture and full-spine radiography are accurate but costly and not suitable
-for opportunistic screening~\citep{motioncapture_gait}. Monocular walking video
-is, by contrast, cheap and ubiquitous, motivating video-based gait
-classifiers~\citep{clinical_gait_review,chao2019gaitset} built on modern
-spatiotemporal backbones~\citep{feichtenhofer2019slowfast}. Purely
-appearance-driven deep models, however, are difficult to trust clinically: they
-offer little evidence that their decisions rest on the anatomically relevant
-regions a spine surgeon would examine, and generic attention
-modules~\citep{hu2018senet,vaswani2017attention} are learned without any tie to
-clinical anatomy.
+Adult spinal deformity (ASD) is associated with abnormal posture and gait, and its early identification can support timely orthopedic assessment and management~\citep{asd_clinical_review}. Full-spine radiography is central to the structural evaluation of ASD, while marker-based motion capture enables detailed quantitative gait analysis. However, both require specialised equipment and clinical workflows, limiting their applicability to frequent, large-scale, or opportunistic screening~\citep{motioncapture_gait}. In contrast, monocular walking videos can be acquired inexpensively using widely available cameras, making them a promising basis for accessible gait-based assessment. This has motivated the development of video-based gait recognition and classification methods~\citep{clinical_gait_review,chao2019gaitset}, supported by advances in spatiotemporal representation learning~\citep{feichtenhofer2019slowfast}.
 
-We investigate whether \emph{clinical priors}---region-of-interest (ROI)
-attention maps that orthopedic experts associate with pathological joints
-(lumbar, pelvis, head, shoulder)---can be injected into a 3D convolutional gait
-classifier both to improve accuracy and to make the model's attention verifiable
-against expert annotations. Our fusion mechanism, \emph{PoseGated}, mixes RGB
-video features with a keypoint-derived attention map through a channel-wise gate,
-and supervises intermediate per-joint heat maps against the doctor annotations.
+Despite their predictive potential, existing video-based models are predominantly appearance driven and provide limited evidence that their decisions are based on clinically meaningful anatomical patterns. Such models may exploit visual cues that correlate with the target labels without necessarily attending to the body regions used by clinicians during gait assessment. Generic channel- or self-attention mechanisms~\citep{hu2018senet,vaswani2017attention} can improve feature selection, but their learned attention is not explicitly constrained to correspond to clinical anatomy. Consequently, high classification performance alone does not establish that a model has learned clinically relevant evidence, which limits its interpretability and potential clinical trustworthiness.
 
-Beyond proposing the model, we ask a design question that is usually left
-implicit: \emph{where} in the network and with \emph{how much} auxiliary
-machinery should a clinical prior be injected? A controlled ablation gives a
-clear answer that contradicts the ``more is better'' default: a shallow,
-lightly-regularised injection is best, and piling on fusion stages, auxiliary
-losses, and a strong gate bias degrades accuracy. Finally, a held-out
-interpretability study quantifies how well the learned attention matches the
-clinical ROI.
+To address this limitation, we investigate whether clinician-defined anatomical priors can be incorporated directly into a spatiotemporal gait classifier. Specifically, orthopedic experts identify clinically relevant regions associated with the lumbar, pelvic, head, and shoulder areas, which are represented as region-of-interest (ROI) attention maps derived from body keypoints. We propose PoseGated, a clinically guided fusion framework that combines RGB video features with these keypoint-derived attention priors through learnable channel-wise gates. The gates allow the network to adaptively control the contribution of visual appearance and clinical prior information at different feature channels. In addition, auxiliary side heads predict joint-specific attention maps at intermediate network stages and are directly supervised using the clinician-defined ROI annotations. This design makes the learned spatial attention quantitatively verifiable rather than relying solely on post-hoc visualisation.
 
-Our contributions are: (i) PoseGated, a gated RGB/prior fusion with side-head
-clinical supervision; (ii) a systematic study of fusion location, depth,
-gate initialisation, and auxiliary losses, with the finding that shallow, lightly
-supervised fusion is optimal; and (iii) a quantitative, held-out interpretability
-analysis showing the supervised attention faithfully localises the clinical ROI.
+A central question in clinically guided representation learning is not only whether prior knowledge should be incorporated, but also where and how strongly it should influence the network. Clinical priors introduced too early may constrain low-level visual representations, whereas priors introduced too deeply may have limited influence on the learned spatiotemporal features. Similarly, additional regularisation objectives or strongly biased fusion gates may appear beneficial but can overconstrain optimisation or suppress complementary RGB information. We therefore systematically examine the location and depth of prior injection, gate initialisation, and auxiliary supervision strategies. The resulting analysis challenges the intuitive assumption that more extensive prior integration necessarily produces better performance: selective shallow fusion at the stem and first residual stage performs best, whereas fusion across all stages, additional background and temporal-smoothness losses, and strongly RGB-biased gate initialisation reduce classification accuracy.
+
+Beyond classification performance, we evaluate whether the learned attention generalises to unseen patients and remains consistent with the clinician-defined anatomical regions. Using held-out interpretability analysis, we quantify spatial agreement through complementary localisation and similarity measures, including the pointing-game hit rate, pixel-wise area under the receiver operating characteristic curve, and attention-map correlation. This evaluation provides direct evidence of whether the incorporated clinical prior is retained within the learned representation and expressed in the model's intermediate attention maps.
+
+The main contributions of this work are as follows:
+\begin{itemize}
+\item We introduce PoseGated, a clinically guided spatiotemporal classification framework that adaptively fuses RGB gait features with keypoint-derived anatomical priors using channel-wise gating.
+\item We develop joint-specific auxiliary side heads that align intermediate model attention with clinician-defined ROI annotations, enabling the learned clinical attention to be quantitatively evaluated.
+\item We conduct a systematic investigation of prior-injection location and depth, gate initialisation, and auxiliary loss design, showing that selective shallow fusion with direct ROI supervision is more effective than extensive multi-stage fusion and additional regularisation.
+\item We perform a held-out interpretability evaluation demonstrating that the supervised attention localises clinically relevant anatomical regions in previously unseen patients, providing anatomically grounded evidence for the model's predictions.
+\end{itemize}
 
 %============================================================
 \section{Related work}
@@ -302,21 +268,68 @@ loss~\citep{lin2017focal}); test folds are left untouched. Implementation uses
 {PyTorch}~\citep{paszke2019pytorch} with {PyTorch Lightning} and {Hydra}
 configuration; each fold is trained on a single GPU.
 
-\subsection{Metrics}
-Each video is segmented into gait-cycle clips, and we report \emph{clip-level}
-accuracy---the fraction of correctly classified clips, pooled per fold---together
-with macro $F_1$, as mean\,$\pm$\,std over the 3 folds. Because multiple clips of
-the same subject are correlated, clip-level accuracy over-counts relative to the
-number of independent subjects; we therefore treat it as a segment-level metric
-and refrain from subject-level or statistical-significance claims
-(Section~\ref{sec:discuss}). For interpretability we compare each side head's predicted heat map with
-the doctor ROI on the held-out test patients using standard saliency-evaluation
-metrics: correlation coefficient (CC), normalized scanpath saliency (NSS),
-pointing game (PG), AUC-Judd, and top-$20\%$ Dice~\citep{bylinskii2019metrics}.
+\subsection{Evaluation protocol and metrics}
+\label{sec:protocol}
+We report accuracy at the \emph{gait-clip} level---one prediction per gait-cycle
+clip, the unit used by prior work on this cohort~\citep{chen2023two,chen2024phasemix}.
+The backbone consumes fixed $16$-frame windows, so each gait clip is split into
+non-overlapping $16$-frame chunks at training and inference time; the per-chunk
+class probabilities are then averaged \emph{within each gait clip} to give one
+clip prediction. We deliberately do \emph{not} report per-chunk accuracy: because
+a clip yields many correlated chunks, per-chunk pooling over-counts and inflates
+the apparent performance and its significance.
+
+Evaluation uses patient-grouped $3$-fold cross-validation with a \emph{held-out}
+protocol: within each fold the outer StratifiedGroupKFold split provides a
+patient-disjoint test set, and a second, inner patient-grouped split carves a
+validation set out of the training patients for early stopping and checkpoint
+selection. Training clips are class-balanced by over-sampling; validation and
+test are left natural. Train, validation and test therefore share no patient, and
+the checkpoint is never selected on the test set. We report clip-level accuracy
+and macro $F_1$ as mean\,$\pm$\,std over the $3$ folds. For interpretability we
+compare each side head's predicted heat map with the doctor ROI on the held-out
+test patients using standard saliency-evaluation metrics: correlation coefficient
+(CC), normalized scanpath saliency (NSS), pointing game (PG), AUC-Judd, and
+top-$20\%$ Dice~\citep{bylinskii2019metrics}.
 
 %============================================================
 \section{Results}
 \label{sec:results}
+
+\noindent\emph{\textbf{Note (under revision).} The accuracy figures in
+Tables~\ref{tab:main}--\ref{tab:ablation} below are being re-computed under the
+held-out, gait-clip protocol of Section~\ref{sec:protocol}. An earlier version of
+these numbers was pooled per $16$-frame chunk and used the fold holdout for both
+validation and testing, which over-states performance; the values here will be
+replaced by the leakage-corrected clip-level results. The prior-work comparison
+(Table~\ref{tab:prior}) and interpretability findings are unaffected.}
+
+\subsection{Comparison with prior work on this cohort}
+\label{sec:prior}
+Table~\ref{tab:prior} places our task in the context of previous gait-video work
+on the same institutional ASD cohort~\citep{chen2023two,chen2024phasemix}. The
+published two-stage study addresses the \emph{binary} ASD/non-ASD task ($75.5\%$);
+the most comparable \emph{three-class} reference is our earlier clinician-attention
+approach, whose RGB-only 3D-CNN reaches $62.1\%$ and whose best fusion reaches
+$71.4\%$. All prior results are reported per gait clip, the level we adopt here,
+which is what makes the comparison meaningful.
+
+\begin{table}[t]
+\centering
+\caption{Prior gait-video work on the same institutional ASD cohort, at the
+gait-clip level. ``Cls'' is the number of diagnostic classes.}
+\label{tab:prior}
+\begin{tabular}{llccc}
+\toprule
+Work & Method & Cls & CV & Acc (\%) \\
+\midrule
+\citet{chen2023two}   & Two-stage 3D-CNN            & 2 & 5 & $75.5$ \\
+Prior (this group)    & Clinician-attention, RGB   & 3 & 5 & $62.1$ \\
+Prior (this group)    & Clinician-attention, fused & 3 & 5 & $71.4$ \\
+\textbf{This work}    & \textbf{PoseGated}         & 3 & 3 & \emph{under revision} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Main comparison}
 Table~\ref{tab:main} reports the RGB-only baseline, the strongest configuration
