@@ -11,3 +11,5 @@
 *.lof
 *.lot
 main.pdf
+figures/*.aux
+figures/*.log
