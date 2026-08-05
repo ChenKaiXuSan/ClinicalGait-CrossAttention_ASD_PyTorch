@@ -56,9 +56,14 @@ class DefineCrossValidation(object):
         self.K: int = config.train.fold
         self.sampler: str = config.data.sampling  # data balance, [over, under, none]
 
-        # cache dir name includes K, so changing train.fold never silently
-        # reuses a split built with a different fold number.
-        self.cache_name: str = f"{self.sampler}_K{self.K}"
+        # Clean-protocol switch: patient-grouped train/val/test with a TRUE
+        # held-out test (no magic_move, holdout never over-sampled). Off by
+        # default to preserve the original cache/behaviour.
+        self.heldout: bool = bool(config.data.get("heldout_test", False))
+
+        # cache dir name includes K (and the protocol), so changing train.fold or
+        # the protocol never silently reuses a split built differently.
+        self.cache_name: str = f"{self.sampler}_K{self.K}" + ("_heldout" if self.heldout else "")
 
         self.class_num: int = config.model.model_class_num
         self.clip_duration: int = config.train.clip_duration
@@ -92,6 +97,16 @@ class DefineCrossValidation(object):
             val_mapped_path.append(new_X_path[i[0]])
 
         return train_mapped_path, val_mapped_path
+
+    @staticmethod
+    def _oversample_one(X, y, idx, sampler):
+        """Resample a SINGLE index set (used for the held-out protocol so that
+        only the inner-train split is balanced; val/test stay natural)."""
+        paths = [X[i] for i in idx]
+        sampled_X, _ = sampler.fit_resample(
+            [[i] for i in range(len(paths))], [y[i] for i in idx]
+        )
+        return [paths[i[0]] for i in sampled_X]
 
     def process_cross_validation(self, video_dict: dict) -> Tuple[List, List, List]:
 
@@ -263,6 +278,37 @@ class DefineCrossValidation(object):
 
         sgkf = StratifiedGroupKFold(n_splits=K)
 
+        if self.heldout:
+            # ---- clean protocol: patient-grouped train / val / test ----------
+            # outer split -> patient-disjoint (train_index, test_index); test is a
+            # TRUE held-out set (natural, never over-sampled, no magic_move). An
+            # inner StratifiedGroupKFold carves a patient-grouped val set out of
+            # train for early stopping. Only inner-train is over/under-sampled.
+            for i, (train_index, test_index) in enumerate(
+                sgkf.split(X=X, y=y, groups=groups)
+            ):
+                tr_y = [y[j] for j in train_index]
+                tr_g = [groups[j] for j in train_index]
+                inner = StratifiedGroupKFold(n_splits=K)
+                rel_tr, rel_val = next(iter(inner.split(train_index, tr_y, tr_g)))
+                inner_train_index = [train_index[j] for j in rel_tr]
+                inner_val_index = [train_index[j] for j in rel_val]
+
+                if self.sampler == "over":
+                    train_paths = self._oversample_one(
+                        X, y, inner_train_index, RandomOverSampler(random_state=42))
+                elif self.sampler == "under":
+                    train_paths = self._oversample_one(
+                        X, y, inner_train_index, RandomUnderSampler(random_state=42))
+                else:
+                    train_paths = [X[j] for j in inner_train_index]
+                val_paths = [X[j] for j in inner_val_index]     # natural
+                test_paths = [X[j] for j in test_index]         # natural, held out
+                # NB: no magic_move -> patient disjointness of the outer split is
+                # preserved (train/val/test share no patient).
+                ans_fold[i] = [train_paths, val_paths, test_paths]
+            return ans_fold, X, y, groups
+
         for i, (train_index, test_index) in enumerate(
             sgkf.split(X=X, y=y, groups=groups)
         ):
@@ -327,12 +373,18 @@ class DefineCrossValidation(object):
                 json_fold_dataset_idx = copy.deepcopy(fold_dataset_idx)
 
                 for k, v in fold_dataset_idx.items():
-                    # [0/1]: train/val mapping path (include the gait cycle index)
-                    # [2/3]: train/val video path
-                    json_fold_dataset_idx[k][0] = [str(i) for i in v[0]]
-                    json_fold_dataset_idx[k][1] = [str(i) for i in v[1]]
-                    json_fold_dataset_idx[k][2] = str(v[2])
-                    json_fold_dataset_idx[k][3] = str(v[3])
+                    if self.heldout:
+                        # [0/1/2]: train/val/test mapping paths (gait cycle index)
+                        json_fold_dataset_idx[k][0] = [str(i) for i in v[0]]
+                        json_fold_dataset_idx[k][1] = [str(i) for i in v[1]]
+                        json_fold_dataset_idx[k][2] = [str(i) for i in v[2]]
+                    else:
+                        # [0/1]: train/val mapping path (include the gait cycle index)
+                        # [2/3]: train/val video path
+                        json_fold_dataset_idx[k][0] = [str(i) for i in v[0]]
+                        json_fold_dataset_idx[k][1] = [str(i) for i in v[1]]
+                        json_fold_dataset_idx[k][2] = str(v[2])
+                        json_fold_dataset_idx[k][3] = str(v[3])
 
                 # write via tmp file + atomic rename, so waiters never load a
                 # partially written index.json.
@@ -357,9 +409,14 @@ class DefineCrossValidation(object):
 
         # unpack: json strings back to Path. Keys are always str here.
         for k, v in fold_dataset_idx.items():
-            fold_dataset_idx[k][0] = [Path(i) for i in v[0]]
-            fold_dataset_idx[k][1] = [Path(i) for i in v[1]]
-            fold_dataset_idx[k][2] = Path(v[2])
-            fold_dataset_idx[k][3] = Path(v[3])
+            if self.heldout:
+                fold_dataset_idx[k][0] = [Path(i) for i in v[0]]
+                fold_dataset_idx[k][1] = [Path(i) for i in v[1]]
+                fold_dataset_idx[k][2] = [Path(i) for i in v[2]]
+            else:
+                fold_dataset_idx[k][0] = [Path(i) for i in v[0]]
+                fold_dataset_idx[k][1] = [Path(i) for i in v[1]]
+                fold_dataset_idx[k][2] = Path(v[2])
+                fold_dataset_idx[k][3] = Path(v[3])
 
         return fold_dataset_idx

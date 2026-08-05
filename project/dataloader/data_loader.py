@@ -97,6 +97,14 @@ class WalkDataModule(LightningDataModule):
 
         self._attn_map = opt.train.attn_map
 
+        # Clean-protocol switch (default off = original behaviour). When on, the
+        # fold holdout is used as a TRUE held-out test set and a patient-grouped
+        # validation set is carved out of the training patients for early stopping
+        # / checkpoint selection, so test != val (fixes the optimistic bias where
+        # the reported "test" was the same set used to pick the best epoch).
+        self._heldout_test = bool(opt.data.get("heldout_test", False))
+        self._heldout_val_frac = float(opt.data.get("heldout_val_frac", 0.2))
+
         self.mapping_transform = Compose(
             [
                 UniformTemporalSubsample(self.uniform_temporal_subsample_num),
@@ -177,9 +185,20 @@ class WalkDataModule(LightningDataModule):
                 load_attn=self._attn_map,
             )
 
-        self.train_gait_dataset = _make(0)  # train mapped path (gait cycle index)
-        self.val_gait_dataset = _make(1)  # val mapped path
-        self.test_gait_dataset = _make(1)  # test == val mapped path
+        if not self._heldout_test:
+            # original behaviour: test == val (kept for reproducing old runs)
+            self.train_gait_dataset = _make(0)  # train mapped path (gait cycle index)
+            self.val_gait_dataset = _make(1)  # val mapped path
+            self.test_gait_dataset = _make(1)  # test == val mapped path
+        else:
+            # clean protocol: cross_validation already produced a patient-disjoint
+            # [train, val, test] (no magic_move, holdout not over-sampled). Just
+            # consume the three splits; test != val and no patient leakage.
+            self.train_gait_dataset = _make(0)
+            self.val_gait_dataset = _make(1)
+            self.test_gait_dataset = _make(2)
+            logger.info("[held-out protocol] using clean patient-disjoint train/val/test "
+                        "(test != val)")
 
     def collate_fn(self, batch):
         """this function process the batch data, and return the batch data.

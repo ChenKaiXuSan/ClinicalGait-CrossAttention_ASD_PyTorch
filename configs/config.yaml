@@ -37,6 +37,7 @@ data:
   num_workers: 16
   img_size: 224
   sampling: "over" # over, under, none
+  heldout_test: False # clean protocol: patient-grouped train/val/TEST (true held-out, no magic_move, holdout not over-sampled). Builds a separate *_heldout fold cache.
 
   batch_size: 16 # this used for default method, without gait cycle defined method.
 
