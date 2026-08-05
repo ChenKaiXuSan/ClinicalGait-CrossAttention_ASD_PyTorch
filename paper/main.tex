@@ -293,7 +293,7 @@ pretraining~\citep{kay2017kinetics}. Two inputs are provided per clip: the RGB
 gait video $x\in\mathbb{R}^{3\times T\times H\times W}$ and a clinical attention
 map $a\in\mathbb{R}^{1\times T\times H\times W}$ obtained from body keypoints (a
 confidence-weighted Gaussian heat map over doctor-annotated joints). PoseGated
-fuses $a$ into the RGB feature stream at one or more stages. Figure~\ref{fig:methods}
+fuses $a$ into the RGB feature stream at one or more stages. Table~\ref{tab:methods}
 and the ablations below study the two design axes we regard as central:
 \emph{where} the prior enters the backbone and \emph{how much} auxiliary
 supervision accompanies it.
@@ -455,7 +455,7 @@ top-$20\%$ Dice~\citep{bylinskii2019metrics}.
 
 \noindent\emph{\textbf{Note (under revision).} PoseGated's own figures (the
 PoseGated row of Table~\ref{tab:main} and the this-work results in
-Tables~\ref{tab:methods}--\ref{tab:ablation}) are being re-computed under the
+Tables~\ref{tab:methods} and~\ref{tab:ablation}) are being re-computed under the
 held-out, gait-clip protocol of Section~\ref{sec:protocol}. An earlier version was
 pooled per $16$-frame chunk and used the fold holdout for both validation and
 testing, which over-states performance; those values will be replaced by the
@@ -481,25 +481,27 @@ accuracy / precision / macro $F_1$ (\%). Baseline architectures and attention-ma
 fusion strategies follow~\citet{chen2025clinicalgait} ($5$-fold). PoseGated (this
 work, $3$-fold) is \emph{under revision} (Section~\ref{sec:results} note).}
 \label{tab:main}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccc}
 \toprule
-Method & Protocol & Acc & Prec & $F_1$ \\
+Method & Acc & Prec & $F_1$ \\
 \midrule
-\multicolumn{5}{@{}l}{\emph{Baseline architectures}}\\
-CNN~\citep{he2016resnet}                 & 5-fold & $52.6$ & $81.1$ & $54.0$ \\
-ST-GCN~\citep{yan2018spatial}            & 5-fold & $60.4$ & $60.2$ & $59.8$ \\
-CNN-LSTM~\citep{mutegeki2020cnn}         & 5-fold & $38.8$ & $45.4$ & $34.9$ \\
-Two-Stream~\citep{simonyan2014twostream} & 5-fold & $54.9$ & $76.5$ & $56.5$ \\
-3D-CNN (RGB)~\citep{chen2023two}         & 5-fold & $62.1$ & $64.6$ & $60.1$ \\
+\multicolumn{4}{@{}l}{\emph{Baseline architectures}}\\
+CNN~\citep{he2016resnet}                 & $52.6$ & $81.1$ & $54.0$ \\
+ST-GCN~\citep{yan2018spatial}            & $60.4$ & $60.2$ & $59.8$ \\
+CNN-LSTM~\citep{mutegeki2020cnn}         & $38.8$ & $45.4$ & $34.9$ \\
+Two-Stream~\citep{simonyan2014twostream} & $54.9$ & $76.5$ & $56.5$ \\
+3D-CNN (RGB)\citep{chen2023two}         & $62.1$ & $64.6$ & $60.1$ \\
 \midrule
-\multicolumn{5}{@{}l}{\emph{Attention-map / motion fusion}}\\
-Add (image $+$ ROI)          & 5-fold & $71.4$ & $75.5$ & $71.1$ \\
-Mul (image $\times$ ROI)     & 5-fold & $50.0$ & $63.6$ & $48.6$ \\
-Concat (channel-wise)        & 5-fold & $59.3$ & $62.5$ & $54.7$ \\
-Avg (mean features)          & 5-fold & $65.8$ & $66.2$ & $64.9$ \\
-Late (score-level)           & 5-fold & $61.2$ & $66.5$ & $58.7$ \\
-PhaseMix~\citep{chen2024phasemix} & 5-fold & $71.4$ & $72.8$ & $71.2$ \\
-\textbf{PoseGated (ours)}    & 3-fold, held-out & \multicolumn{3}{c}{\emph{under revision}} \\
+\multicolumn{4}{@{}l}{\emph{Attention-map / motion fusion}}\\
+Add (image $+$ ROI)                      & $71.4$ & $75.5$ & $71.1$ \\
+Mul (image $\times$ ROI)                 & $50.0$ & $63.6$ & $48.6$ \\
+Concat (channel-wise)                    & $59.3$ & $62.5$ & $54.7$ \\
+Avg (mean features)                      & $65.8$ & $66.2$ & $64.9$ \\
+Late (score-level)                       & $61.2$ & $66.5$ & $58.7$ \\
+Squeeze-and-excitation (best)            & $72.1$ & $71.9$ & $71.4$ \\
+QKV cross-attention (layer 4)            & $70.2$ & $70.5$ & $69.5$ \\
+PhaseMix\citep{chen2024phasemix}        & $71.4$ & $72.8$ & $71.2$ \\
+\textbf{PoseGated (ours)}                & \multicolumn{3}{c}{\emph{under revision}} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -521,35 +523,6 @@ accuracy closely, indicating the classifier is not simply exploiting the majorit
 true class; the diagonal gives per-class recall.}
 \label{fig:confusion}
 \end{figure}
-
-\subsection{Fusion mechanism (A1)}
-Table~\ref{tab:methods} compares fusion families on this work's own runs. Among
-them PoseGated is strongest ($94.8\%$), followed by early concatenation
-($93.8\%$); squeeze-and-excitation and cross-attention cluster around
-$90\!-\!92\%$, and early element-wise multiplication is weakest ($89.9\%$). The
-clinical-prior gating thus adds more than the input-level or unsupervised
-attention alternatives.
-
-\begin{table}[t]
-\centering
-\caption{Fusion-method comparison (A1) on this work's runs, at the gait-clip
-level: accuracy / precision / macro $F_1$ (\%). \emph{Values under revision
-(Section~\ref{sec:results} note).}}
-\label{tab:methods}
-\begin{tabular}{lccc}
-\toprule
-Method & Acc & Prec & $F_1$ \\
-\midrule
-RGB-only baseline (3D-CNN)          & $90.6$ & $90.6$ & $90.1$ \\
-Early fusion (add)                  & $91.5$ & $91.4$ & $91.0$ \\
-Early fusion (mul)                  & $89.9$ & $90.1$ & $89.5$ \\
-Early fusion (concat)               & $93.8$ & $93.8$ & $93.2$ \\
-Squeeze-and-excitation (best)       & $92.1$ & $91.9$ & $91.4$ \\
-QKV cross-attention (layer 4)       & $90.2$ & $90.5$ & $89.5$ \\
-\textbf{PoseGated (multi-$[0,1]$, ours)} & $\mathbf{94.8}$ & $\mathbf{94.4}$ & $\mathbf{94.4}$ \\
-\bottomrule
-\end{tabular}
-\end{table}
 
 \subsection{Where and how much to fuse (A5)}
 \label{sec:layers}
@@ -691,14 +664,6 @@ $L0\!-\!L2$    & $0.43\!-\!0.53$ & $1.5\!-\!2.0$ & $1.00$ & ${\approx}1.00$ & $0
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.62\linewidth]{figures/fig_methods.pdf}
-\caption{Fusion-method comparison (best per family). PoseGated (blue) exceeds the
-RGB-only baseline (grey) and all competing fusion mechanisms. Bars show
-mean$\,\pm\,$std over patient-grouped 3-fold cross-validation.}
-\label{fig:methods}
-\end{figure}
 
 \begin{figure}[t]
 \centering
