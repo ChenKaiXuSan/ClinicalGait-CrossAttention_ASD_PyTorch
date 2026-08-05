@@ -193,7 +193,7 @@ pretraining~\citep{kay2017kinetics}. Two inputs are provided per clip: the RGB
 gait video $x\in\mathbb{R}^{3\times T\times H\times W}$ and a clinical attention
 map $a\in\mathbb{R}^{1\times T\times H\times W}$ obtained from body keypoints (a
 confidence-weighted Gaussian heat map over doctor-annotated joints). PoseGated
-fuses $a$ into the RGB feature stream at one or more stages. Figure~\ref{fig:methods}
+fuses $a$ into the RGB feature stream at one or more stages. Table~\ref{tab:methods}
 and the ablations below study the two design axes we regard as central:
 \emph{where} the prior enters the backbone and \emph{how much} auxiliary
 supervision accompanies it.
@@ -386,11 +386,33 @@ true class; the diagonal gives per-class recall.}
 \end{figure}
 
 \subsection{Fusion mechanism (A1)}
-Among fusion families, PoseGated is strongest, followed by early concatenation
-($93.7\%$); squeeze-and-excitation and cross-attention cluster around
-$90\!-\!92\%$, and early element-wise multiplication is weakest ($89.3\%$). The
+Table~\ref{tab:methods} compares fusion families on this work's own runs. Among
+them PoseGated is strongest ($94.8\%$), followed by early concatenation
+($93.8\%$); squeeze-and-excitation and cross-attention cluster around
+$90\!-\!92\%$, and early element-wise multiplication is weakest ($89.9\%$). The
 clinical-prior gating thus adds more than the input-level or unsupervised
-attention alternatives (Fig.~\ref{fig:methods}).
+attention alternatives.
+
+\begin{table}[t]
+\centering
+\caption{Fusion-method comparison (A1) on this work's runs, at the gait-clip
+level: accuracy / precision / macro $F_1$ (\%). \emph{Values under revision
+(Section~\ref{sec:results} note).}}
+\label{tab:methods}
+\begin{tabular}{lccc}
+\toprule
+Method & Acc & Prec & $F_1$ \\
+\midrule
+RGB-only baseline (3D-CNN)          & $90.6$ & $90.6$ & $90.1$ \\
+Early fusion (add)                  & $91.5$ & $91.4$ & $91.0$ \\
+Early fusion (mul)                  & $89.9$ & $90.1$ & $89.5$ \\
+Early fusion (concat)               & $93.8$ & $93.8$ & $93.2$ \\
+Squeeze-and-excitation (best)       & $92.1$ & $91.9$ & $91.4$ \\
+QKV cross-attention (layer 4)       & $90.2$ & $90.5$ & $89.5$ \\
+\textbf{PoseGated (multi-$[0,1]$, ours)} & $\mathbf{94.8}$ & $\mathbf{94.4}$ & $\mathbf{94.4}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Where and how much to fuse (A5)}
 \label{sec:layers}
@@ -532,14 +554,6 @@ $L0\!-\!L2$    & $0.43\!-\!0.53$ & $1.5\!-\!2.0$ & $1.00$ & ${\approx}1.00$ & $0
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.62\linewidth]{figures/fig_methods.pdf}
-\caption{Fusion-method comparison (best per family). PoseGated (blue) exceeds the
-RGB-only baseline (grey) and all competing fusion mechanisms. Bars show
-mean$\,\pm\,$std over patient-grouped 3-fold cross-validation.}
-\label{fig:methods}
-\end{figure}
 
 \begin{figure}[t]
 \centering
