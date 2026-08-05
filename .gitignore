@@ -132,13 +132,4 @@ logs/
 checkpoints/
 logs-bak/
 analysis/alignment_out/alignment_per_record.csv
-paper/*.aux
-paper/*.log
-paper/*.out
-paper/*.bbl
-paper/*.blg
-paper/*.pdf
-paper/*.spl
-paper/*.fdb_latexmk
-paper/*.fls
-paper/figures/*.png
+paper/
