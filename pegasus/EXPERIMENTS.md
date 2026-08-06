@@ -236,8 +236,8 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 | 脚本 | 角色 | array | sub-jobs | experiment tag | 状态 |
 |---|---|---|---|---|---|
 | `run_train_heldout.sh` | 首批 4 配置（baseline / early_concat / pose_multi01 / pose_single_L3） | cfg(4)×fold(3) | 12 | `heldout_{...}_f{fold}` | ✅ 完成 |
-| `run_train_heldout_location.sh` | A5 位置/深度扫（single L0/L1/L2/L4 + multi P2/P3/P4） | cfg(7)×fold(3) | 21 | `heldout_pose_single_L{i}` / `heldout_pose_multi_P{i}` | ⏳ 891743[] QUE |
-| `run_train_heldout_ablation.sh` | A2/A3/A4/A6 gate-bias·loss·gate-mech，**锚 single-L3** | cfg(7)×fold(3) | 21 | `heldout_ab_{bias0,biasneg1,nobg,notmp,noside,gateadd,gatefixed}_f{fold}` | ⏳ 891765[] QUE |
+| `run_train_heldout_location.sh` | A5 位置/深度扫（single L0/L1/L2/L4 + multi P2/P3/P4） | cfg(7)×fold(3) | 21 | `heldout_pose_single_L{i}` / `heldout_pose_multi_P{i}` | ✅ 完成 891743[] |
+| `run_train_heldout_ablation.sh` | A2/A3/A4/A6 gate-bias·loss·gate-mech，**锚 single-L3** | cfg(7)×fold(3) | 21 | `heldout_ab_{bias0,biasneg1,nobg,notmp,noside,gateadd,gatefixed}_f{fold}` | ✅ 完成 891765[] |
 
 两个新 array 的 `SUBREQNO = cfg*3 + fold`；cfg→配置见各脚本 `case` 块。位置扫复用已完成的 single-L3 与 multi-[0,1](P1)，未重复。
 

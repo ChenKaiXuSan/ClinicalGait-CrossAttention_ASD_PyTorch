@@ -22,10 +22,27 @@ from omegaconf import OmegaConf
 import analysis.aggregate_levels as A
 
 HELDOUT_METHODS = [
+    # --- main-comparison anchors ---
     "heldout_baseline",        # RGB-only backbone
     "heldout_early_concat",    # early concat fusion
-    "heldout_pose_multi01",    # PoseGated multi [0,1]
-    "heldout_pose_single_L3",  # PoseGated single L3 (best)
+    # --- A5 fusion location/depth sweep (single Li, multi prefix Pi) ---
+    "heldout_pose_single_L0",
+    "heldout_pose_single_L1",
+    "heldout_pose_single_L2",
+    "heldout_pose_single_L3",  # single L3 (clean best so far)
+    "heldout_pose_single_L4",
+    "heldout_pose_multi01",    # multi [0,1] (P1)
+    "heldout_pose_multi_P2",   # multi [0,1,2]
+    "heldout_pose_multi_P3",   # multi [0,1,2,3]
+    "heldout_pose_multi_P4",   # multi [0,1,2,3,4] (all-stage)
+    # --- A2/A3/A4/A6 ablations, anchored on single-L3 ---
+    "heldout_ab_bias0",        # gate bias 0.0
+    "heldout_ab_biasneg1",     # gate bias -1.0
+    "heldout_ab_nobg",         # - bg loss
+    "heldout_ab_notmp",        # - tmp loss
+    "heldout_ab_noside",       # - side heads
+    "heldout_ab_gateadd",      # gate_mode=add (plain injection)
+    "heldout_ab_gatefixed",    # gate_mode=fixed (0.5 mix)
 ]
 
 
