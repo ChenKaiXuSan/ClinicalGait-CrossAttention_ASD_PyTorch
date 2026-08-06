@@ -1,7 +1,8 @@
 #!/bin/bash
-#PBS -A SKIING
-#PBS -q gpu
+#PBS -A HP260146                       # run on the HP260146 allocation (SKIING gpu budget was exhausted)
+#PBS -q gen_S                          # HP260146 can't use the `gpu` queue; it uses the general gen_S queue
 #PBS -b 1
+#PBS --gpunum-lhost=1                  # gen_S default GPU = 0, so GPUs MUST be requested explicitly
 #PBS -l elapstim_req=24:00:00
 #PBS -N heldout_abl_m01               # A2/A3/A4/A6 ablations re-anchored on multi-[0,1] — CLEAN held-out
 #PBS -t 0-20                          # array: 7 configs x 3 folds  (SUBREQNO = cfg*3 + fold)
