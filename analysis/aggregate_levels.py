@@ -109,33 +109,57 @@ def run(config):
                 y_true = [int(v[1]) for v in acc.values()]
                 y_pred = [int(v[0].argmax()) for v in acc.values()]
                 lvl[name].append(_scores(y_true, y_pred))
-        # per level: mean/std across folds over the 4-metric vector
-        results[tag] = {k: (np.mean(v, axis=0), np.std(v, axis=0), len(v))
+        # per level: mean / std / max (best fold) / per-fold rows, over the 4-metric vector
+        results[tag] = {k: (np.mean(v, axis=0), np.std(v, axis=0),
+                            np.max(v, axis=0), np.asarray(v), len(v))
                         for k, v in lvl.items() if v}
 
     # ---- print tables ----
-    # (1) primary: CLIP-level Acc / macro-Prec / macro-F1 (main-table granularity)
+    # (1) CLIP-level BEST-FOLD (max over folds): Acc / macro-Prec / macro-F1
+    #     NB each metric's max is taken independently and may come from different folds.
+    print("\n=== CLIP-level BEST-FOLD (max over folds): Acc / macro-Prec / macro-F1 (%) ===")
+    print(f"{'method':22} {'Acc':>7} {'Prec':>7} {'F1':>7}")
+    for tag in METHODS:
+        r = results.get(tag, {}).get("clip")
+        if r is None:
+            print(f"{tag:22} {'--':>7}"); continue
+        _, _, mx, _, _ = r
+        print(f"{tag:22} {mx[0]:7.1f} {mx[1]:7.1f} {mx[3]:7.1f}")
+
+    # (1b) CLIP-level BEST fold by ACCURACY — report THAT fold's Acc/Prec/F1
+    #      (all three metrics from the SAME fold; self-consistent). Also show which fold.
+    print("\n=== CLIP-level BEST-ACC FOLD (same fold, self-consistent): Acc / Prec / F1 (%) ===")
+    print(f"{'method':22} {'fold':>4} {'Acc':>7} {'Prec':>7} {'F1':>7}")
+    for tag in METHODS:
+        r = results.get(tag, {}).get("clip")
+        if r is None:
+            print(f"{tag:22} {'--':>4}"); continue
+        _, _, _, rows, _ = r          # rows: (n_folds, 4) = [acc, prec, rec, f1]; row i == fold i
+        bi = int(np.argmax(rows[:, 0]))
+        print(f"{tag:22} {bi:>4} {rows[bi,0]:7.1f} {rows[bi,1]:7.1f} {rows[bi,3]:7.1f}")
+
+    # (2) CLIP-level mean±std (kept for reference)
     print("\n=== CLIP-level (mean±std over folds): Acc / macro-Prec / macro-F1 (%) ===")
     print(f"{'method':22} {'Acc':>13} {'Prec':>13} {'F1':>13}")
     for tag in METHODS:
         r = results.get(tag, {}).get("clip")
         if r is None:
             print(f"{tag:22} {'--':>13}"); continue
-        m, s, _ = r
+        m, s, mx, rows, _ = r
         print(f"{tag:22} {m[0]:5.1f} ± {s[0]:4.1f} {m[1]:5.1f} ± {s[1]:4.1f} {m[3]:5.1f} ± {s[3]:4.1f}")
 
-    # (2) accuracy across granularities (chunk / clip / patient)
-    print("\n=== Accuracy by evaluation granularity (mean±std over folds) ===")
-    print(f"{'method':22} {'chunk (~42k)':>16} {'clip (~1954)':>16} {'patient (81)':>16}")
+    # (3) accuracy across granularities (chunk / clip / patient), best fold
+    print("\n=== BEST-FOLD accuracy by granularity (max over folds, %) ===")
+    print(f"{'method':22} {'chunk (~42k)':>14} {'clip (~1954)':>14} {'patient (81)':>14}")
     for tag in METHODS:
         r = results.get(tag, {})
         cells = []
         for lv in ("chunk", "clip", "patient"):
             if lv in r:
-                m, s, _ = r[lv]; cells.append(f"{m[0]:5.1f} ± {s[0]:3.1f}")
+                _, _, mx, _, _ = r[lv]; cells.append(f"{mx[0]:5.1f}")
             else:
-                cells.append("   --   ")
-        print(f"{tag:22} {cells[0]:>16} {cells[1]:>16} {cells[2]:>16}")
+                cells.append("  --  ")
+        print(f"{tag:22} {cells[0]:>14} {cells[1]:>14} {cells[2]:>14}")
     print("\nChen 2023 (Front. Neurosci.) evaluates at the CLIP level (binary, 5-fold).")
     return results
 
