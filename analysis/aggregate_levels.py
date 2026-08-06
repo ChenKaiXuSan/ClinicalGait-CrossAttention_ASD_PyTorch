@@ -72,9 +72,19 @@ def run(config):
     def patient_of(vn):
         return vn.split("-")[0]
 
+    from sklearn.metrics import precision_recall_fscore_support
+
+    def _scores(y_true, y_pred):
+        """acc / macro-precision / macro-recall / macro-F1, all in %."""
+        y_true = np.asarray(y_true); y_pred = np.asarray(y_pred)
+        acc = (y_true == y_pred).mean() * 100.0
+        p, r, f, _ = precision_recall_fscore_support(
+            y_true, y_pred, average="macro", zero_division=0)
+        return np.array([acc, p * 100.0, r * 100.0, f * 100.0])
+
     results = {}
     for tag in METHODS:
-        lvl = {"chunk": [], "clip": [], "patient": []}
+        lvl = {"chunk": [], "clip": [], "patient": []}     # each holds per-fold [acc,P,R,F1]
         for fold, meta in order.items():
             probs, labels = _load_probs(tag, fold)
             if probs is None:
@@ -86,33 +96,46 @@ def run(config):
             assert np.array_equal(lab_meta, labels[:n]), f"label mismatch {tag} fold{fold}"
 
             # chunk level
-            lvl["chunk"].append((probs.argmax(1) == labels[:n]).mean() * 100)
+            lvl["chunk"].append(_scores(labels[:n], probs.argmax(1)))
 
             # aggregate mean-prob by clip (video_name) and by patient
             for key_fn, name in ((lambda i: meta_n[i][0], "clip"),
                                  (lambda i: patient_of(meta_n[i][0]), "patient")):
-                acc = defaultdict(lambda: [np.zeros(probs.shape[1]), 0, None])
+                acc = defaultdict(lambda: [np.zeros(probs.shape[1]), None])
                 for i in range(n):
                     k = key_fn(i)
                     acc[k][0] += probs[i]
-                    acc[k][1] += 1
-                    acc[k][2] = labels[i]
-                correct = sum(int(v[0].argmax() == v[2]) for v in acc.values())
-                lvl[name].append(100 * correct / len(acc))
-        results[tag] = {k: (np.mean(v), np.std(v), len(v)) for k, v in lvl.items() if v}
-        # also report unit counts from the last fold processed
-    # ---- print table ----
+                    acc[k][1] = labels[i]
+                y_true = [int(v[1]) for v in acc.values()]
+                y_pred = [int(v[0].argmax()) for v in acc.values()]
+                lvl[name].append(_scores(y_true, y_pred))
+        # per level: mean/std across folds over the 4-metric vector
+        results[tag] = {k: (np.mean(v, axis=0), np.std(v, axis=0), len(v))
+                        for k, v in lvl.items() if v}
+
+    # ---- print tables ----
+    # (1) primary: CLIP-level Acc / macro-Prec / macro-F1 (main-table granularity)
+    print("\n=== CLIP-level (mean±std over folds): Acc / macro-Prec / macro-F1 (%) ===")
+    print(f"{'method':22} {'Acc':>13} {'Prec':>13} {'F1':>13}")
+    for tag in METHODS:
+        r = results.get(tag, {}).get("clip")
+        if r is None:
+            print(f"{tag:22} {'--':>13}"); continue
+        m, s, _ = r
+        print(f"{tag:22} {m[0]:5.1f} ± {s[0]:4.1f} {m[1]:5.1f} ± {s[1]:4.1f} {m[3]:5.1f} ± {s[3]:4.1f}")
+
+    # (2) accuracy across granularities (chunk / clip / patient)
     print("\n=== Accuracy by evaluation granularity (mean±std over folds) ===")
-    print(f"{'method':20} {'chunk (~42k)':>16} {'clip (~1954)':>16} {'patient (81)':>16}")
+    print(f"{'method':22} {'chunk (~42k)':>16} {'clip (~1954)':>16} {'patient (81)':>16}")
     for tag in METHODS:
         r = results.get(tag, {})
         cells = []
         for lv in ("chunk", "clip", "patient"):
             if lv in r:
-                m, s, _ = r[lv]; cells.append(f"{m:5.1f} ± {s:3.1f}")
+                m, s, _ = r[lv]; cells.append(f"{m[0]:5.1f} ± {s[0]:3.1f}")
             else:
                 cells.append("   --   ")
-        print(f"{tag:20} {cells[0]:>16} {cells[1]:>16} {cells[2]:>16}")
+        print(f"{tag:22} {cells[0]:>16} {cells[1]:>16} {cells[2]:>16}")
     print("\nChen 2023 (Front. Neurosci.) evaluates at the CLIP level (binary, 5-fold).")
     return results
 
