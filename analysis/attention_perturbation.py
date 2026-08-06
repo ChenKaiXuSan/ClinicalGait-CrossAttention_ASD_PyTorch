@@ -58,6 +58,7 @@ def run(config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     gen = torch.Generator().manual_seed(0)
     per_fold = int(config.get("pert", {}).get("per_fold", 750))
+    tag = str(config.get("pert", {}).get("tag", TAG))   # clean re-run: +pert.tag=heldout_pose_multi01
 
     fold_idx = DefineCrossValidation(config)()
     conds = ["real", "shuffled", "zero"]
@@ -65,7 +66,7 @@ def run(config):
 
     for fold_key in sorted(fold_idx.keys(), key=int):
         fold = int(fold_key)
-        run_dir = _resolve_run_dir(f"logs/train/{TAG}_f*/**", fold)
+        run_dir = _resolve_run_dir(f"logs/train/{tag}_f*/**", fold)
         ckpt = _find_best_ckpt(run_dir, fold) if run_dir else None
         if not ckpt:
             logger.warning(f"[fold {fold}] no ckpt; skipped"); continue
