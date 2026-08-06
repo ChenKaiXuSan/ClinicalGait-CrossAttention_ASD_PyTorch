@@ -238,7 +238,8 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 | `run_train_heldout.sh` | 首批 4 配置（baseline / early_concat / pose_multi01 / pose_single_L3） | cfg(4)×fold(3) | 12 | `heldout_{...}_f{fold}` | ✅ 完成 |
 | `run_train_heldout_location.sh` | A5 位置/深度扫（single L0/L1/L2/L4 + multi P2/P3/P4） | cfg(7)×fold(3) | 21 | `heldout_pose_single_L{i}` / `heldout_pose_multi_P{i}` | ✅ 完成 891743[] |
 | `run_train_heldout_ablation.sh` | A2/A3/A4/A6 gate-bias·loss·gate-mech，**锚 single-L3** | cfg(7)×fold(3) | 21 | `heldout_ab_{bias0,biasneg1,nobg,notmp,noside,gateadd,gatefixed}_f{fold}` | ✅ 完成 891765[] |
-| `run_train_heldout_competitors.sh` | A1 主表融合竞品干净重跑（early add/mul/avg + late + SE prefix0-4 + cross L3/L4/L34；concat 已在首批） | cfg(12)×fold(3) | 36 | `heldout_early_{add,mul,avg}` / `heldout_late` / `heldout_se_prefix{0-4}` / `heldout_cross_{L3,L4,L34}` | ⏳ 892635[] |
+| `run_train_heldout_competitors.sh` | A1 主表融合竞品干净重跑（early add/mul/avg + late + SE prefix0-4 + cross L3/L4/L34；concat 已在首批） | cfg(12)×fold(3) | 36 | `heldout_early_{add,mul,avg}` / `heldout_late` / `heldout_se_prefix{0-4}` / `heldout_cross_{L3,L4,L34}` | ⏳ 892635[] RUN |
+| `run_train_heldout_ablation_multi01.sh` | A2/A3/A4/A6 消融**重锚 multi-[0,1]**（best-fold 口径下最优；参考=heldout_pose_multi01） | cfg(7)×fold(3) | 21 | `heldout_abm_{bias0,biasneg1,nobg,notmp,noside,gateadd,gatefixed}_f{fold}` | ⏸ 预算超限,待 892635 释放后重提 |
 
 两个新 array 的 `SUBREQNO = cfg*3 + fold`；cfg→配置见各脚本 `case` 块。位置扫复用已完成的 single-L3 与 multi-[0,1](P1)，未重复。
 

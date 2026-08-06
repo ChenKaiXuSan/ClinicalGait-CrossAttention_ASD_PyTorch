@@ -43,6 +43,14 @@ HELDOUT_METHODS = [
     "heldout_ab_noside",       # - side heads
     "heldout_ab_gateadd",      # gate_mode=add (plain injection)
     "heldout_ab_gatefixed",    # gate_mode=fixed (0.5 mix)
+    # --- A2/A3/A4/A6 ablations re-anchored on multi-[0,1] (companion set) ---
+    "heldout_abm_bias0",
+    "heldout_abm_biasneg1",
+    "heldout_abm_nobg",
+    "heldout_abm_notmp",
+    "heldout_abm_noside",
+    "heldout_abm_gateadd",
+    "heldout_abm_gatefixed",
 ]
 
 
