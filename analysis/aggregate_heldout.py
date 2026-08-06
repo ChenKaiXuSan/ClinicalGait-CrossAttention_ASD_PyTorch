@@ -51,6 +51,19 @@ HELDOUT_METHODS = [
     "heldout_abm_noside",
     "heldout_abm_gateadd",
     "heldout_abm_gatefixed",
+    # --- A1 main-table competitors (clean rerun, array 892635) ---
+    "heldout_early_add",
+    "heldout_early_mul",
+    "heldout_early_avg",
+    "heldout_late",          # NOTE: crashed (OOM, 2-backbone) -> skipped by loader
+    "heldout_se_prefix0",
+    "heldout_se_prefix1",
+    "heldout_se_prefix2",
+    "heldout_se_prefix3",
+    "heldout_se_prefix4",
+    "heldout_cross_L3",
+    "heldout_cross_L4",
+    "heldout_cross_L34",
 ]
 
 
