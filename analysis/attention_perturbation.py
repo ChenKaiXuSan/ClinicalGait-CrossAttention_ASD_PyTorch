@@ -112,7 +112,7 @@ def run(config):
         del module
 
     # summarize
-    lines = ["# Attention-perturbation control (test-time, PoseGated multi-[0,1])\n",
+    lines = [f"# Attention-perturbation control (test-time, {tag})\n",
              f"Stratified subsample (~{per_fold}/fold). Pooled clip accuracy (%), mean+-std over folds.\n",
              "| Condition | Accuracy (%) | dAcc vs real |", "|---|---|---|"]
     real_mean = float(np.mean(tally["real"])) if tally["real"] else float("nan")
