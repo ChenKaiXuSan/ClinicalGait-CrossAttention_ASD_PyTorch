@@ -5,7 +5,7 @@ Created: 2026-07-28
 Cross-method qualitative comparison for the paper (companion to fig_qualitative).
 For one correctly-comparable held-out clip per class, overlay Grad-CAM
 (class-discriminative saliency, model-agnostic) for EACH fusion method against
-the doctor ROI, so a reader can see PoseGated's attention localises on the
+the doctor ROI, so a reader can see ClinicalGated's attention localises on the
 clinical ROI while the unsupervised baselines are more diffuse / off-target.
 
 Grad-CAM target = the SlowR50 backbone's last residual stage (blocks[4]),

@@ -8,9 +8,9 @@ panels:
 
   (a) Class-discriminative attention (Grad-CAM at the shared SlowR50 blocks[4])
       across fusion methods: RGB | Doctor ROI | Baseline | SE | Cross-attn |
-      PoseGated. Shows unsupervised baselines are diffuse; PoseGated is focused.
-  (b) PoseGated SUPERVISED side-head (L3) attention vs. the clinical ROI (deep
-      variant multi-[0,1,2,3]): RGB | Doctor ROI | PoseGated attention. Shows the
+      ClinicalGated. Shows unsupervised baselines are diffuse; ClinicalGated is focused.
+  (b) ClinicalGated SUPERVISED side-head (L3) attention vs. the clinical ROI (deep
+      variant multi-[0,1,2,3]): RGB | Doctor ROI | ClinicalGated attention. Shows the
       supervised attention lands on the annotated joints (fidelity).
 
 Grad-CAM (a) answers "what drives the class decision"; the supervised map (b) is
@@ -152,8 +152,8 @@ def render(clips, cams):
             if r == 0:
                 ax.set_title(a_cols[cc], fontsize=8)
 
-    # ---- panel (b): PoseGated supervised attention (centered 3 cols) ----
-    b_cols = ["RGB", "Doctor ROI", "PoseGated (supervised)"]
+    # ---- panel (b): ClinicalGated supervised attention (centered 3 cols) ----
+    b_cols = ["RGB", "Doctor ROI", "ClinicalGated (supervised)"]
     for r, cls in enumerate(classes):
         c = clips[cls]
         axr = fig.add_subplot(gsb[r, 0]); axr.imshow(c["rgb"]); axr.set_ylabel(cls.replace("_", "-"), fontsize=9)
@@ -166,7 +166,7 @@ def render(clips, cams):
 
     fig.text(0.5, 0.955, "(a) Class-discriminative attention (Grad-CAM) across fusion methods",
              ha="center", va="center", fontsize=9)
-    fig.text(0.5, 0.495, "(b) PoseGated supervised side-head attention vs. clinical ROI",
+    fig.text(0.5, 0.495, "(b) ClinicalGated supervised side-head attention vs. clinical ROI",
              ha="center", va="center", fontsize=9)
     fig.savefig(f"{OUT}/fig_qual_combined.pdf", bbox_inches="tight")
     plt.close(fig)
