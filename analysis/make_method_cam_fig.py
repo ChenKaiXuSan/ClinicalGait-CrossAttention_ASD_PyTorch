@@ -36,11 +36,13 @@ logger = logging.getLogger(__name__)
 OUT = "paper/figures"
 
 # display name, log tag, trainer module, trainer class
+# Clean held-out runs (leaky pose_atn_* / baseline_rgb / se_atn_* / cross_atn_* are archived).
+# SE uses prefix 4 = the best SE point in the paper's main table; run with data.heldout_test=True.
 METHODS = [
-    ("Baseline",   "baseline_rgb",      "project.trainer.baseline.train_3dcnn", "Res3DCNNTrainer"),
-    ("SE",         "se_atn_prefix0",    "project.trainer.mid.train_se_attn",    "SEAttnTrainer"),
-    ("Cross-attn", "cross_atn_L4",      "project.trainer.mid.train_cross_attn", "CrossAttentionTrainer"),
-    ("PoseGated",  "pose_atn_multi_P1", "project.trainer.mid.train_pose_attn",  "PoseAttnTrainer"),
+    ("Baseline",      "heldout_baseline",     "project.trainer.baseline.train_3dcnn", "Res3DCNNTrainer"),
+    ("SE",            "heldout_se_prefix4",   "project.trainer.mid.train_se_attn",    "SEAttnTrainer"),
+    ("Cross-attn",    "heldout_cross_L4",     "project.trainer.mid.train_cross_attn", "CrossAttentionTrainer"),
+    ("ClinicalGated", "heldout_pose_multi01", "project.trainer.mid.train_pose_attn",  "PoseAttnTrainer"),
 ]
 
 

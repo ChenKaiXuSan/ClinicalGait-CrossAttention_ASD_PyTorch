@@ -39,7 +39,7 @@ from analysis.make_method_cam_fig import _grad_cam, METHODS
 
 logger = logging.getLogger(__name__)
 OUT = "paper/figures"
-SUP_TAG = "pose_atn_multi_P3"   # deep variant with side heads through L3 (supervised panel)
+SUP_TAG = "heldout_pose_multi_P3"   # clean deep variant with side heads through L3 (supervised panel); run with data.heldout_test=True
 
 
 def collect(config):
