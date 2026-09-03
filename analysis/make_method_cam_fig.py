@@ -42,7 +42,7 @@ METHODS = [
     ("Baseline",      "heldout_baseline",     "project.trainer.baseline.train_3dcnn", "Res3DCNNTrainer"),
     ("SE",            "heldout_se_prefix4",   "project.trainer.mid.train_se_attn",    "SEAttnTrainer"),
     ("Cross-attn",    "heldout_cross_L4",     "project.trainer.mid.train_cross_attn", "CrossAttentionTrainer"),
-    ("ClinicalGated", "heldout_pose_multi01", "project.trainer.mid.train_pose_attn",  "PoseAttnTrainer"),
+    ("ClinicalGated", "heldout_pose_single_L3", "project.trainer.mid.train_pose_attn",  "PoseAttnTrainer"),  # main model (narrative B)
 ]
 
 
