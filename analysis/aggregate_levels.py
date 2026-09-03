@@ -70,7 +70,13 @@ def run(config):
         logger.info(f"[fold {fold}] index rebuilt: {len(im)} chunks")
 
     def patient_of(vn):
-        return vn.split("-")[0]
+        # video_name = "<date>[_<idx>]_<class>_<view>[_]_V<k>-<clip>" with INCONSISTENT
+        # spellings across recordings (optional _<idx>; single or double underscore
+        # before V<k>), so the whole "-"-prefix over-splits one patient into several
+        # ids (folds 1/2 inflated to 30/49 units vs 25/26 patients). The stable key
+        # is the leading date[+idx] = first two "_" tokens: on the held-out cache it
+        # gives 34/17/28, 34/20/25, 36/17/26 patients, 79 unique, zero overlap.
+        return "_".join(vn.split("_")[:2])
 
     from sklearn.metrics import precision_recall_fscore_support
 
@@ -147,6 +153,19 @@ def run(config):
             print(f"{tag:22} {'--':>13}"); continue
         m, s, mx, rows, _ = r
         print(f"{tag:22} {m[0]:5.1f} ± {s[0]:4.1f} {m[1]:5.1f} ± {s[1]:4.1f} {m[3]:5.1f} ± {s[3]:4.1f}")
+
+    # (2b) mean±std accuracy across granularities (chunk / clip / patient)
+    print("\n=== Accuracy by evaluation granularity (mean±std over folds, %) ===")
+    print(f"{'method':22} {'chunk (~42k)':>16} {'clip (~1891)':>16} {'patient (79)':>16}")
+    for tag in METHODS:
+        r = results.get(tag, {})
+        cells = []
+        for lv in ("chunk", "clip", "patient"):
+            if lv in r:
+                m, s, _, _, _ = r[lv]; cells.append(f"{m[0]:5.1f} ± {s[0]:3.1f}")
+            else:
+                cells.append("   --   ")
+        print(f"{tag:22} {cells[0]:>16} {cells[1]:>16} {cells[2]:>16}")
 
     # (3) accuracy across granularities (chunk / clip / patient), best fold
     print("\n=== BEST-FOLD accuracy by granularity (max over folds, %) ===")

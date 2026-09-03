@@ -256,10 +256,14 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 
 | 配置 | chunk | clip（前作可比） | patient |
 |---|---|---|---|
-| RGB baseline | 53.8±8.0 | 52.6±9.4 | 67.1±9.5 |
-| early_concat | 56.1±6.4 | 53.7±8.0 | 74.0±4.4 |
-| pose multi-[0,1] | 59.9±13.3 | 60.3±15.9 | 74.4±7.8 |
-| **pose single-L3** | **68.9±5.9** | **69.2±5.5** | **80.2±4.4** |
+| RGB baseline | 53.8±8.0 | 52.6±9.4 | 67.3±6.3 |
+| early_concat | 56.1±6.4 | 53.7±8.0 | 65.8±6.0 |
+| early_mul | 67.9±8.1 | 68.0±8.2 | **77.3±2.1** |
+| pose multi-[0,1] | 59.9±13.3 | 60.3±15.9 | 66.0±10.7 |
+| **pose single-L3** | **68.9±5.9** | **69.2±5.5** | 74.7±1.2 |
+
+> patient 列已用**修正的患者键**重算(原 `video_name.split("-")[0]` 因命名拼写不一致会把一个患者拆成多个,fold1/2 被高估;现用前两个 `_` 字段 = 日期[_序号],与 fold 缓存核对一致:34/17/28、34/20/25、36/17/26,79 人,零交集)。clip 级(论文口径)未受影响。
+> **按类召回(clip,3 折合并)**:LCS-HipOA 对**所有方法所有折均为 0**(评估集仅 9 人,每折训练 3–5 人);DHS:mul 60 / single-L3 56 / multi-[0,1] 35.5(fold2 为 0);ASD 89–94。见 `analysis/diag_perclass_heldout.py` 与 `heldout_results_summary.md`。
 
 **⚠️ 结论反转**：干净协议下 **single-L3（深层单点）最优**（69.2 clip），旧"shallow-[0,1] 最好、越深越差"叙事失效。→ tab:layers 全部重做（本节位置扫），主推 model 从 multi-[0,1] 改为 single-L3；tab:ablation 参考模型随之改到 single-L3（本节 ablation array）。
 

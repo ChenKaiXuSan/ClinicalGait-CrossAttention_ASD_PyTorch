@@ -27,6 +27,21 @@ single-L3 leads on all three metrics and has the lowest variance. Fusion
 competitors (early add/mul/avg, late, SE prefix0-4, cross L3/L4/L34) are being
 re-run clean in array 892635[]; their clip Acc/Prec/F1 will be added on completion.
 
+## Accuracy by evaluation granularity (mean ± std over 3 folds, %)
+
+| method | chunk (~42k) | clip (~1,891) | patient (79) |
+|---|---|---|---|
+| RGB baseline | 53.8 ± 8.0 | 52.6 ± 9.4 | 67.3 ± 6.3 |
+| early concat | 56.1 ± 6.4 | 53.7 ± 8.0 | 65.8 ± 6.0 |
+| early mul | 67.9 ± 8.1 | 68.0 ± 8.2 | **77.3 ± 2.1** |
+| PoseGated multi-[0,1] | 59.9 ± 13.3 | 60.3 ± 15.9 | 66.0 ± 10.7 |
+| **PoseGated single-L3** | **68.9 ± 5.9** | **69.2 ± 5.5** | 74.7 ± 1.2 |
+
+Patient level = argmax of the mean probability over all of a subject's clips, with
+the corrected patient key (see Caveats). At patient level multi-[0,1] is
+indistinguishable from the RGB baseline; early mul and single-L3 are the most
+accurate and by far the most stable (±2.1 / ±1.2).
+
 ## A5 — fusion location / depth (clip, %)
 
 | single | Acc | F1 | multi prefix | Acc | F1 |
@@ -61,12 +76,39 @@ of single-L3 is justified. The **learned gate is essential** (gated 69.2/48.8 �
 add 56.1/32.7, fixed 57.2/40.6; the leaky "gate is secondary" result also inverts).
 The RGB-biased init b=2.0 is best; bg/tmp losses and side heads all help.
 
+## Per-class recall (clip level, pooled over the 3 held-out folds, %)
+
+| method | ASD | DHS | LCS-HipOA | pooled acc |
+|---|---|---|---|---|
+| RGB baseline | 88.8 | 11.0 | **0.0** | 52.5 |
+| early mul | 89.4 | 59.9 | **0.0** | 68.0 |
+| PoseGated single-L3 | 93.8 | 56.1 | **0.0** | 69.2 |
+| PoseGated multi-[0,1] | 89.1 | 35.5 | **0.0** | 60.3 |
+
+**LCS-HipOA recall is 0 for every method and every fold.** The evaluated cohort has
+only 9 LCS-HipOA subjects (2 of the raw 11 were excluded in preprocessing) and each
+training split holds just **3–5** of them (DHS 6–7, ASD 24) — too few to learn a
+class that must generalise to unseen patients. Models do occasionally predict
+LCS-HipOA (12–40 pooled predictions) but never correctly, so it is not a pure
+majority-class degenerate solution: the class carries no transferable signal at
+this sample size. Per fold, train/val/test subjects are 34/17/28, 34/20/25,
+36/17/26 (79 subjects, ~1,891 clips; zero cross-split overlap). DHS *is*
+learnable (mul 60%, single-L3 56%); multi-[0,1] is the weakest fusion on it
+(35.5%, and 0% on fold 2). Source: `analysis/diag_perclass_heldout.py`.
+
 ## Caveats
 - 3 folds; several configs have high std (bg, gate-mech, all multi) — differences
   are directionally consistent but not all individually significant. fold-2 is the
-  hardest split across every config (LCS-HipOA–heavy test set).
-- necessity (ROI perturbation) and attention–ROI alignment are analysis re-runs on
-  the clean single-L3 checkpoints, still pending.
+  hardest split for every config (ASD recall drops to ~70–86% there).
+- The patient-level column in the granularity table originally used a wrong
+  grouping key (`video_name.split("-")[0]`, which over-splits patients because the
+  name spelling is inconsistent across recordings: optional `_<idx>`, single vs
+  double underscore before `V<k>`). It is recomputed with the leading date[+idx]
+  key (`"_".join(name.split("_")[:2])`, verified against the fold cache).
+  Clip-level numbers — the paper's unit — were never affected.
+- necessity (ROI perturbation) was run on the clean multi-[0,1] checkpoints and
+  attention–ROI alignment on the clean multi-[0,1,2,3] checkpoints; both are in
+  the paper.
 
 ## Reproduce
 ```
