@@ -264,6 +264,7 @@ cross_atn 只扫深层的原因：THW×THW 注意力矩阵在 stem/layer1（56×
 
 > patient 列已用**修正的患者键**重算(原 `video_name.split("-")[0]` 因命名拼写不一致会把一个患者拆成多个,fold1/2 被高估;现用前两个 `_` 字段 = 日期[_序号],与 fold 缓存核对一致:34/17/28、34/20/25、36/17/26,79 人,零交集)。clip 级(论文口径)未受影响。
 > **按类召回(clip,3 折合并)**:LCS-HipOA 对**所有方法所有折均为 0**(评估集仅 9 人,每折训练 3–5 人);DHS:mul 60 / single-L3 56 / multi-[0,1] 35.5(fold2 为 0);ASD 89–94。见 `analysis/diag_perclass_heldout.py` 与 `heldout_results_summary.md`。
+> **ASD vs 非 ASD 筛查指标**(`analysis/binary_asd_heldout.py`,同一批 3 类模型导出,不重训):RGB baseline / SE / cross 的 **AUROC ≈ 0.49(随机)**,精度全靠"几乎都判 ASD"(特异度 8–14%);**single-L3 AUROC 0.80±0.05(每折 ≥0.74)**,mul 0.62±0.13,multi-[0,1] 0.67±0.15(fold2 0.455,低于随机)。→ 论文主叙事 B(ASD 识别 + 可验证注意力)的头条指标应为 AUROC,主模型应为 single-L3;gated 对 mul 的优势在判别力而非 argmax 精度。
 
 **⚠️ 结论反转**：干净协议下 **single-L3（深层单点）最优**（69.2 clip），旧"shallow-[0,1] 最好、越深越差"叙事失效。→ tab:layers 全部重做（本节位置扫），主推 model 从 multi-[0,1] 改为 single-L3；tab:ablation 参考模型随之改到 single-L3（本节 ablation array）。
 

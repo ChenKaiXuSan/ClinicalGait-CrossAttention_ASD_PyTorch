@@ -96,6 +96,35 @@ this sample size. Per fold, train/val/test subjects are 34/17/28, 34/20/25,
 learnable (mul 60%, single-L3 56%); multi-[0,1] is the weakest fusion on it
 (35.5%, and 0% on fold 2). Source: `analysis/diag_perclass_heldout.py`.
 
+## ASD vs non-ASD screening metrics (clip level, derived from the same 3-class models, %)
+
+Decision rule = argmax==ASD (untuned); score for AUROC = P(ASD). mean ± std over 3 folds.
+Source: `analysis/binary_asd_heldout.py` (no re-training / re-inference).
+
+| method | acc | sens | spec | bal. acc | F1(ASD) | **AUROC** |
+|---|---|---|---|---|---|---|
+| RGB baseline | 52.6±9.4 | 88.8±12.8 | 7.7±8.4 | 48.2±8.9 | 67.2±7.7 | **49.1±5.6** (chance) |
+| early add | 62.3±8.7 | 82.5±15.5 | 37.2±9.3 | 59.9±8.0 | 70.3±8.8 | 59.2±9.0 |
+| early mul | 68.0±8.2 | 89.4±9.8 | 41.5±5.9 | 65.5±7.8 | 75.4±6.9 | 61.8±13.1 |
+| early concat | 53.7±8.0 | 90.3±11.9 | 8.4±7.2 | 49.3±7.5 | 68.1±6.8 | 60.5±14.8 |
+| early avg | 52.7±7.9 | 88.6±11.6 | 8.1±8.0 | 48.4±7.5 | 67.2±6.7 | 54.1±11.9 |
+| SE (prefix 4) | 55.2±8.7 | 88.5±12.0 | 14.0±9.9 | 51.2±8.3 | 68.4±7.2 | 49.4±5.1 (chance) |
+| cross-attn (L4) | 51.3±11.3 | 86.5±15.1 | 7.7±9.6 | 47.1±10.8 | 65.9±9.4 | 47.1±5.1 (chance) |
+| PoseGated multi-[0,1] | 61.1±14.8 | 89.1±12.9 | 26.5±18.4 | 57.8±15.0 | 71.8±10.8 | 67.2±15.4 (fold 2: 45.5) |
+| **PoseGated single-L3** | **70.4±4.0** | 93.8±5.8 | **41.4±2.4** | **67.6±3.7** | **77.7±3.5** | **80.5±5.3** (fold 2: 74.1) |
+
+Best-fold AUROC (fold 1): single-L3 87.0, multi-[0,1] 76.8, mul 68.1.
+
+Findings: (1) the RGB-only backbone, SE and cross-attention have **no ASD-discriminative
+signal** (AUROC ≈ 0.5); their accuracy comes from predicting ASD for almost everything
+(specificity 8–14%). (2) The clinical prior adds real discriminative capacity, but it
+is large and stable only for **single-L3** (AUROC 0.80, ≥0.74 on every fold).
+(3) The accuracy tie between gated fusion and multiplicative input masking
+(69.2 vs 68.0) disappears under the threshold-free metric: **single-L3 0.80 vs
+mul 0.62** — the gate's advantage is in discriminability, not in argmax accuracy at
+the default operating point. (4) multi-[0,1] is fold-fragile (AUROC 0.67±0.15,
+below chance on fold 2) and cannot anchor a screening claim.
+
 ## Caveats
 - 3 folds; several configs have high std (bg, gate-mech, all multi) — differences
   are directionally consistent but not all individually significant. fold-2 is the
