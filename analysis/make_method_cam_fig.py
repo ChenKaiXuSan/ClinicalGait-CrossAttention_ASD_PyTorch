@@ -33,7 +33,7 @@ from analysis.attention_alignment import _resolve_run_dir, _find_best_ckpt
 from analysis.make_qualitative_fig import _upsample, _norm, _overlay
 
 logger = logging.getLogger(__name__)
-OUT = "paper/figures"
+OUT = "analysis/figures_out"  # neutral output; copy into paper/<version>/figures by hand
 
 # display name, log tag, trainer module, trainer class
 # Clean held-out runs (leaky pose_atn_* / baseline_rgb / se_atn_* / cross_atn_* are archived).

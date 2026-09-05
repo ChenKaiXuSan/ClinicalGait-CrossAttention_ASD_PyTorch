@@ -10,7 +10,7 @@ so a reader can SEE that the supervised attention lands on the clinical ROI
 
 Mirrors analysis/attention_alignment.evaluate_alignment for the (proven) data +
 checkpoint path, but instead of computing metrics it captures a few example
-tensors and renders paper/figures/fig_qualitative.pdf.
+tensors and renders analysis/figures_out/fig_qualitative.pdf.
 
 Run (asd env; CPU is fine, just slower):
     python -m analysis.make_qualitative_fig \
@@ -30,7 +30,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
-OUT = "paper/figures"
+OUT = "analysis/figures_out"  # neutral output; copy into paper/<version>/figures by hand
 
 # import the proven checkpoint-resolution helpers
 from analysis.attention_alignment import _resolve_run_dir, _find_best_ckpt

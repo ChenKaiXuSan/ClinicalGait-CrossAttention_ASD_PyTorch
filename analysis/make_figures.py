@@ -3,7 +3,7 @@ File: analysis/make_figures.py
 Created: 2026-07-27
 -----
 Generate publication figures for the paper from the completed experiment matrix.
-Outputs vector PDFs to paper/figures/:
+Outputs vector PDFs to analysis/figures_out/:
   fig_layers.pdf     A5: accuracy vs fusion location/depth (single vs multi)
   fig_methods.pdf    A1: fusion-method comparison
   fig_ablation.pdf   A2/A3/A4: gate-bias & loss/component ablations vs full
@@ -31,7 +31,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 LOG = "logs/train"
-OUT = "paper/figures"
+OUT = "analysis/figures_out"  # neutral output; copy into paper/<version>/figures by hand
 
 # Okabe-Ito colorblind-safe palette
 OI = {

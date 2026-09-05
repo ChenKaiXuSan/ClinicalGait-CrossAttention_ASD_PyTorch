@@ -38,7 +38,7 @@ from analysis.make_qualitative_fig import _upsample, _norm, _overlay
 from analysis.make_method_cam_fig import _grad_cam, METHODS
 
 logger = logging.getLogger(__name__)
-OUT = "paper/figures"
+OUT = "analysis/figures_out"  # neutral output; copy into paper/<version>/figures by hand
 SUP_TAG = "heldout_pose_multi_P3"   # clean deep variant with side heads through L3 (supervised panel); run with data.heldout_test=True
 
 

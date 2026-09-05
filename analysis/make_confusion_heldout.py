@@ -2,7 +2,7 @@
 File: analysis/make_confusion_heldout.py
 Created: 2026-08-06
 -----
-CLIP-level confusion matrix of the clean main model (paper/figures/fig_confusion.pdf).
+CLIP-level confusion matrix of the clean main model (analysis/figures_out/fig_confusion.pdf).
 
 Replaces make_figures.fig_confusion(), which pooled CHUNK-level argmax predictions
 of the archived leaky run (pose_atn_multi_P1). The paper reports gait-CLIP-level
@@ -32,7 +32,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
-OUT = "paper/figures"
+OUT = "analysis/figures_out"  # neutral output; copy into paper/<version>/figures by hand
 CLASSES = ["ASD", "DHS", "LCS-HipOA"]
 
 
