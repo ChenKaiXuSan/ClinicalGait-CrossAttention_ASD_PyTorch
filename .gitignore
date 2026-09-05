@@ -133,3 +133,7 @@ checkpoints/
 logs-bak/
 analysis/**/alignment_per_record.csv
 paper/
+
+# regenerated paper figures (copy into paper/<version>/figures manually)
+analysis/figures_out/*
+!analysis/figures_out/.gitkeep
