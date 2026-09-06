@@ -3,8 +3,8 @@ File: analysis/make_combined_fig.py
 Created: 2026-07-28
 -----
 Single combined qualitative figure (merges the former fig_qualitative +
-fig_method_cam into one image), using the SAME held-out clip per class, laid out
-as ONE row of columns (2026-09-06; previously two stacked panels):
+fig_method_cam into one image), using the SAME held-out clip per class for both
+panels:
 
   (a) Class-discriminative attention (Grad-CAM at the shared SlowR50 blocks[4])
       across fusion methods: RGB | Doctor ROI | Baseline | SE | Cross-attn |
@@ -120,46 +120,57 @@ def collect(config):
     return clips, cams
 
 
-DISPLAY = {"Baseline": "3D-CNN\n(RGB only)", "SE": "SE fusion", "Cross-attn": "Cross-attn"}   # column titles (match the tables)
-
-
 def render(clips, cams):
-    """Single-row layout: RGB | Doctor ROI | Grad-CAM per method | ClinicalGated supervised side head."""
-    from matplotlib.lines import Line2D
     os.makedirs(OUT, exist_ok=True)
     classes = [c for c in ["ASD", "DHS", "LCS_HipOA"] if c in clips] or list(clips)
     methods = [m for m, *_ in METHODS if m in cams]
-    cols = ["RGB", "Doctor ROI"] + [DISPLAY.get(m, m) for m in methods] + ["ClinicalGated\nside head"]
-    nrow, ncol = len(classes), len(cols)
+    nrow = len(classes)
+    a_cols = ["RGB", "Doctor ROI"] + methods                 # panel (a): 2 + methods
+    nca = len(a_cols)
 
-    L, R, T, B = 0.06, 0.995, 0.80, 0.02
-    fig = plt.figure(figsize=(1.15 * ncol, 1.22 * nrow + 0.75))
-    gs = fig.add_gridspec(nrow, ncol, left=L, right=R, top=T, bottom=B, hspace=0.05, wspace=0.05)
+    L, R = 0.07, 0.99
+    cellw = (R - L) / nca
+    fig = plt.figure(figsize=(1.15 * nca, 2.05 * nrow + 0.7))
+
+    # two explicitly-positioned bands so panel titles never collide
+    gsa = fig.add_gridspec(nrow, nca, left=L, right=R, top=0.90, bottom=0.55,
+                           hspace=0.05, wspace=0.05)
+    bL = (L + R) / 2 - 1.5 * cellw                            # centre the 3 (b)-cells
+    gsb = fig.add_gridspec(nrow, 3, left=bL, right=bL + 3 * cellw, top=0.44, bottom=0.05,
+                           hspace=0.05, wspace=0.05)
+
+    # ---- panel (a): Grad-CAM across methods ----
     for r, cls in enumerate(classes):
         c = clips[cls]
-        axes = []
-        ax = fig.add_subplot(gs[r, 0]); ax.imshow(c["rgb"]); ax.set_ylabel(cls.replace("_", "-"), fontsize=9); axes.append(ax)
-        ax = fig.add_subplot(gs[r, 1]); _overlay(ax, c["rgb"], c["roi"]); axes.append(ax)
+        row = []
+        ax0 = fig.add_subplot(gsa[r, 0]); ax0.imshow(c["rgb"]); ax0.set_ylabel(cls.replace("_", "-"), fontsize=9); row.append(ax0)
+        ax1 = fig.add_subplot(gsa[r, 1]); _overlay(ax1, c["rgb"], c["roi"]); row.append(ax1)
         for k, m in enumerate(methods):
-            ax = fig.add_subplot(gs[r, 2 + k]); _overlay(ax, c["rgb"], cams[m][cls]); axes.append(ax)
-        ax = fig.add_subplot(gs[r, ncol - 1]); _overlay(ax, c["rgb"], c["sup"]); axes.append(ax)
-        for cc, ax in enumerate(axes):
+            ax = fig.add_subplot(gsa[r, 2 + k]); _overlay(ax, c["rgb"], cams[m][cls]); row.append(ax)
+        for cc, ax in enumerate(row):
             ax.set_xticks([]); ax.set_yticks([])
             if r == 0:
-                ax.set_title(cols[cc], fontsize=8)
+                ax.set_title(a_cols[cc], fontsize=8)
 
-    # group labels above the column titles: Grad-CAM block vs. supervised block
-    cw = (R - L) / ncol
-    def group(c0, c1, text):
-        x0, x1 = L + c0 * cw + 0.004, L + (c1 + 1) * cw - 0.004
-        y = T + 0.115
-        fig.add_artist(Line2D([x0, x1], [y, y], color="0.3", lw=0.8))
-        fig.text((x0 + x1) / 2, y + 0.012, text, ha="center", va="bottom", fontsize=8.5)
-    group(2, 1 + len(methods), "Class-discriminative attention (Grad-CAM, last backbone stage)")
-    group(ncol - 1, ncol - 1, "Supervised attention")
+    # ---- panel (b): ClinicalGated supervised attention (centered 3 cols) ----
+    b_cols = ["RGB", "Doctor ROI", "ClinicalGated (supervised)"]
+    for r, cls in enumerate(classes):
+        c = clips[cls]
+        axr = fig.add_subplot(gsb[r, 0]); axr.imshow(c["rgb"]); axr.set_ylabel(cls.replace("_", "-"), fontsize=9)
+        axo = fig.add_subplot(gsb[r, 1]); _overlay(axo, c["rgb"], c["roi"])
+        axs = fig.add_subplot(gsb[r, 2]); _overlay(axs, c["rgb"], c["sup"])
+        for cc, ax in enumerate((axr, axo, axs)):
+            ax.set_xticks([]); ax.set_yticks([])
+            if r == 0:
+                ax.set_title(b_cols[cc], fontsize=8)
+
+    fig.text(0.5, 0.955, "(a) Class-discriminative attention (Grad-CAM) across fusion methods",
+             ha="center", va="center", fontsize=9)
+    fig.text(0.5, 0.495, "(b) ClinicalGated supervised side-head attention vs. clinical ROI",
+             ha="center", va="center", fontsize=9)
     fig.savefig(f"{OUT}/fig_qual_combined.pdf", bbox_inches="tight")
     plt.close(fig)
-    print(f"wrote {OUT}/fig_qual_combined.pdf ({nrow} classes x {ncol} columns, single-row layout)")
+    print(f"wrote {OUT}/fig_qual_combined.pdf ({nrow} classes; (a) {len(methods)} methods, (b) supervised)")
 
 
 def _main():
